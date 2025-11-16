@@ -1,0 +1,88 @@
+{% extends parent_base|default:"base.html" %}
+{% load static %}
+{% block title %}
+    Sizzle Daily Status Report
+{% endblock title %}
+{% block description %}
+    Submit your daily status report for Sizzle. Track your previous work, plan your next steps, and identify any blockers to maintain progress.
+{% endblock description %}
+{% block keywords %}
+    Sizzle Daily Status Report, Daily Report, Work Tracking, Status Report, Daily Update, Track Progress
+{% endblock keywords %}
+{% block og_title %}
+    Sizzle Daily Status Report - Track Your Progress
+{% endblock og_title %}
+{% block og_description %}
+    Submit your daily status report to track your work progress, plan next steps, and identify any blockers. Keep your team updated with your Sizzle status.
+{% endblock og_description %}
+{% block content %}
+    <div class="container mx-auto p-6">
+        <!-- Include the left navigation -->
+        {% if sizzle_has_sidenav %}
+            {% include "includes/sidenav.html" %}
+        {% endif %}
+        <!-- Main Content Section -->
+        <div class="main-content w-full">
+            <div class="flex justify-between items-center mb-8 mt-8">
+                <h1 class="text-4xl font-semibold text-gray-800 mb-8">Your Sizzle Daily Status Report</h1>
+            </div>
+            <div class="flex space-x-10 items-center mb-8 mt-8">
+                <a href="{% url 'sizzle' %}"
+                   class="bg-red-500 text-white py-2 px-6 rounded-md shadow-md hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-300 cursor-pointer">
+                    Back to Sizzle
+                </a>
+                <a href="{% url 'sizzle_docs' %}"
+                   class="bg-red-500 text-white py-2 px-6 rounded-md shadow-md hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-300 cursor-pointer">
+                    Sizzle Docs
+                </a>
+                <a href="{% url 'time_logs' %}"
+                   class="bg-red-500 text-white py-2 px-6 rounded-md shadow-md hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-300 cursor-pointer">
+                    Start Tracking
+                </a>
+                <a href="{% url 'add_sizzle_checkin' %}"
+                   class="bg-red-500 text-white py-2 px-6 rounded-md shadow-md hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-300 cursor-pointer">
+                    Add Check-In
+                </a>
+            </div>
+            <!-- Display Daily Status Reports -->
+            <div class="bg-white shadow-lg rounded-lg overflow-hidden mb-8">
+                <div class="bg-red-500 text-white text-center py-4 text-lg font-semibold">Your Daily Status Reports</div>
+                {% for report in reports %}
+                    <div class="p-6 border-b border-gray-200">
+                        <h2 class="text-xl font-semibold mb-2">Date: {{ report.date }}</h2>
+                        <p>
+                            <strong>What did you work on previously?</strong>
+                        </p>
+                        <p>{{ report.previous_work }}</p>
+                        <p>
+                            <strong>What do you plan to do next?</strong>
+                        </p>
+                        <p>{{ report.next_plan }}</p>
+                        <p>
+                            <strong>Do you have any blockers?</strong>
+                        </p>
+                        <p>{{ report.blockers }}</p>
+                        <p>
+                            <strong>Did you accomplish your goals for yesterday?</strong>
+                        </p>
+                        <p>
+                            {% if report.goal_accomplished %}
+                                ✅ Yes
+                            {% else %}
+                                ❌ No
+                            {% endif %}
+                        </p>
+                        <p>
+                            <strong>How are you feeling today?</strong>
+                        </p>
+                        <p>{{ report.current_mood }}</p>
+                    </div>
+                {% empty %}
+                    <div class="p-6">
+                        <p>You have not submitted any daily status reports yet.</p>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+{% endblock content %}
