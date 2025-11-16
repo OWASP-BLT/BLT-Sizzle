@@ -15,7 +15,6 @@ Originally built for the OWASP Bug Logging Tool (BLT), now available as a standa
 - **Analytics**: View individual and team reports
 
 ## Architecture & Design
-## Why Use Sizzle?
 
 ### Built to Play Nice
 
@@ -48,7 +47,7 @@ SIZZLE_EMAIL_REMINDERS_ENABLED = True # Just use email
 # Match your design
 SIZZLE_PARENT_BASE = 'base.html'      # Extends your base template
 ```
-## Requirements
+
 ## What You'll Need
 
 - Python 3.11 or newer
@@ -69,8 +68,13 @@ pip install blt-sizzle
 
 ### From Source (for developers)
 
+```bash
+git clone https://github.com/OWASP-BLT/BLT.git
+cd BLT
+pip install -e sizzle/
+```
 
-### Set It Up
+## Quick Start
 
 **Step 1:** Add to your `settings.py`
 
@@ -97,16 +101,6 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('sizzle/', include('sizzle.urls')),  # Add this
     # ... your other URLs
-]
-django.urls import path, include
-
-urlpatterns = [
-    path('admin/', admin.site.urls),
-    
-    # Add Sizzle URLs
-    path('sizzle/', include('sizzle.urls')),
-    
-    # Your other URLs
 ]
 ```
 
@@ -147,7 +141,42 @@ This creates three simple tables:
 - Daily check-in reports
 - Time log entries  
 - Reminder settings for each user
+
+```bash
 python manage.py createsuperuser
+python manage.py runserver
+```
+
+Now visit `http://localhost:8000/sizzle/` to get started!
+
+## Basic Configuration
+
+Sizzle works out of the box, but you can customize it:
+
+```python
+# settings.py
+
+# Feature toggles
+SIZZLE_SLACK_ENABLED = True              # Enable Slack integration
+SIZZLE_EMAIL_REMINDERS_ENABLED = True    # Enable email reminders
+
+# Template integration
+SIZZLE_PARENT_BASE = 'base.html'         # Use your base template
+SIZZLE_SHOW_SIDENAV = True               # Show navigation
+
+# Model integration (optional)
+SIZZLE_ORGANIZATION_MODEL = 'myapp.Organization'
+SIZZLE_USERPROFILE_MODEL = 'myapp.UserProfile'
+```
+
+## Contributing
+
+We'd love your help! Check out our [Contributing Guide](CONTRIBUTING.md) for detailed instructions on:
+
+- Setting up your development environment
+- Testing Sizzle within a Django project
+- Code standards and testing
+- Submitting pull requests
 
 ## All the URLs
 
@@ -164,34 +193,19 @@ Here's where everything lives:
 | `/sizzle/sizzle-daily-log/` | Your daily activity log |
 | `/sizzle/user-sizzle-report/<username>/` | See someone's full report |
 
-## License
+## What's New?
 
-This project is licensed under the AGPL-3.0 License - see LICENSE file for details.
-
-## Credits
-
-Developed as part of the OWASP Bug Logging Tool (BLT) project.
-
-## Support
-
-- GitHub Issues: https://github.com/OWASP-BLT/BLT/issues
-- OWASP BLT: https://owasp.org/www-project-bug-logging-tool/
-
-## Who Made This?
-
-BLT Sizzle was built by the OWASP Bug Logging Tool (BLT) team and community contributors. We needed a way to keep our distributed team connected, so we built this.
+BLT Sizzle was built by the [OWASP Bug Logging Tool (BLT)](https://github.com/OWASP-BLT/BLT) team and community contributors. We needed a way to keep our distributed team connected, so we built this.
 
 Now we're sharing it so other teams can use it too!
 
-## Get Help
+## Community & Support
 
+- **Main Project**: [OWASP BLT Repository](https://github.com/OWASP-BLT/BLT)
 - **Found a bug?** [Open an issue](https://github.com/OWASP-BLT/BLT/issues)
 - **Have a question?** [Start a discussion](https://github.com/OWASP-BLT/BLT/discussions)
-- **Want to chat?** Join our community (link in BLT repo)
-
-## License
-
-MIT License - use it however you want! See [LICENSE](LICENSE) for the legal stuff.
+- **Slack Community**: [Join OWASP Slack](https://owasp.org/slack/invite)
+- **BLT Channel**: [#project-blt](https://owasp.slack.com/archives/C2FF0UVHU)
 
 ## What's New?
 
@@ -214,3 +228,17 @@ Features included:
 - Team goal setting
 
 Suggestions welcome! [Submit a feature request](https://github.com/OWASP-BLT/BLT/issues/new)
+
+---
+
+**Quick Links:**
+- [OWASP BLT Project](https://github.com/OWASP-BLT/BLT)
+- [Contributing Guide](CONTRIBUTING.md)
+- [Join OWASP Slack](https://owasp.org/slack/invite)
+- [BLT Community Channel](https://owasp.slack.com/archives/C2FF0UVHU)
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+Developed by the OWASP BLT community
