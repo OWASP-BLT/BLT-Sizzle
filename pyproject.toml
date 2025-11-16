@@ -90,6 +90,9 @@ Repository = "https://github.com/OWASP-BLT/BLT"
 "Bug Tracker" = "https://github.com/OWASP-BLT/BLT/issues"
 Changelog = "https://github.com/OWASP-BLT/BLT/blob/main/CHANGELOG.md"
 
+[project.entry-points."django.apps"]
+sizzle = "sizzle.apps:SizzleConfig"
+
 [tool.setuptools]
 packages = ["sizzle"]
 include-package-data = true
@@ -102,10 +105,6 @@ sizzle = [
     "management/**/*",
     "locale/**/*"
 ]
-
-# Django app configuration
-[tool.setuptools.entry-points]
-"django.apps" = ["sizzle = sizzle.apps:SizzleConfig"]
 
 # Code formatting and linting configuration
 [tool.black]
