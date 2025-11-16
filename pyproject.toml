@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "blt-sizzle"
-version = "0.1.0"
+version = "0.1.1"
 description = "A pluggable Django app for daily check-ins, time tracking, and team productivity monitoring"
 readme = "README.md"
 license = {text = "MIT"}
@@ -40,9 +40,7 @@ requires-python = ">=3.11"
 
 # Core dependencies
 dependencies = [
-    "Django>=4.0,<6.0",
-    "pytz>=2023.3",
-    "python-dateutil>=2.9.0",
+    "Django>=4.0,<6.0"
 ]
 
 # Optional dependencies for different features
