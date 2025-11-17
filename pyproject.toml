@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sizzle"
-version = "0.1.5"
+version = "0.1.6"
 description = "A pluggable Django app for daily check-ins, time tracking, and team productivity monitoring"
 readme = "README.md"
 license = "MIT"
@@ -37,13 +37,14 @@ classifiers = [
 ]
 requires-python = ">=3.11"
 
-# Core dependencies (commented out for TestPyPI testing)
-# dependencies = [
-#     "Django>=4.0,<6.0"
-# ]
-
-# Uncomment for production release:
-dependencies = []
+# Core dependencies
+dependencies = [
+    "Django>=4.0,<6.0",
+    "djangorestframework>=3.14.0",
+    "pytz>=2023.3",
+    "python-dateutil>=2.9.0",
+    "requests>=2.31.0",
+]
 
 # Optional dependencies for different features
 [project.optional-dependencies]
