@@ -101,9 +101,10 @@
                                             {% endif %}
                                         </td>
                                         <td class="py-3 px-4 border-b border-gray-200">
-                                            {% if user.is_authenticated %}
-                                                <button class="delete-entry bg-red-500 text-white py-1 px-3 rounded"
-                                                        data-id="{{ sizzle_data.id }}">Delete</button>
+                                            {% if sizzle_data %}
+                                                <span class="text-sm text-gray-500">ID: {{ sizzle_data.id }}</span>
+                                            {% else %}
+                                                <span class="text-sm text-gray-500">-</span>
                                             {% endif %}
                                         </td>
                                     </tr>
@@ -127,8 +128,7 @@
                                 {% for user in leaderboard %}
                                     <tr>
                                         <td class="py-3 px-4 border-b border-gray-200">
-                                            <a href="{% url 'user_sizzle_report' user.username %}"
-                                               class="text-blue-500 hover:underline">{{ user.username }}</a>
+                                            <span class="font-medium text-gray-900">{{ user.username }}</span>
                                         </td>
                                         <td class="py-3 px-4 border-b border-gray-200">{{ user.formatted_duration }}</td>
                                     </tr>
@@ -158,84 +158,14 @@
                 }, function(start, end, label) {
                     $('#report-date').text(start.format('D.M.YYYY') + ' - ' + end.format('D.M.YYYY') + ' Report');
 
-                    // Fetch and update report logs
-                    $.ajax({
-                        url: '{% url "timelogsreport" %}',
-                        data: {
-                            start_date: start.format('YYYY-MM-DDTHH:mm:ssZ'),
-                            end_date: end.format('YYYY-MM-DDTHH:mm:ssZ')
-                        },
-                        success: function(data) {
-                            // Clear existing content and append the new data
-                            $('#report-table').empty();
-                            data.forEach(function(item) {
-                                $('#report-table').append(`
-                                    <div class="bg-white shadow-lg rounded-lg overflow-hidden mb-8">
-                                        <div class="bg-red-500 text-white text-center py-4 text-lg font-semibold">
-                                            ${item.date}
-                                        </div>
-                                        <table class="min-w-full bg-white">
-                                            <thead>
-                                                <tr class="bg-red-500 text-white text-sm uppercase tracking-wider">
-                                                    <th class="text-left py-3 px-4 border-b border-gray-200">Issue Title</th>
-                                                    <th class="text-left py-3 px-4 border-b border-gray-200">Started</th>
-                                                    <th class="text-left py-3 px-4 border-b border-gray-200">Total</th>
-                                                    <th class="text-left py-3 px-4 border-b border-gray-200">Action</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                <tr>
-                                                    <td class="py-3 px-4 border-b border-gray-200">${item.issue_title}</td>
-                                                    <td class="py-3 px-4 border-b border-gray-200">${item.start_time}</td>
-                                                    <td class="py-3 px-4 border-b border-gray-200">${item.duration}</td>
-                                                    <td class="py-3 px-4 border-b border-gray-200">
-                                                        <button class="delete-entry bg-red-500 text-white py-1 px-3 rounded" data-id="${item.id}">
-                                                            Delete
-                                                        </button>
-                                                        <span>Item ID: ${item.id}</span>
-                                                    </td>
-                                                </tr>
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                `);
-                            });
-                        },
-                        error: function(xhr, status, error) {
-                            alert('An error occurred while fetching the report logs.');
-                        }
-                    });
+                    // Update date display only
+                    $('#report-date').text(start.format('D.M.YYYY') + ' - ' + end.format('D.M.YYYY') + ' Report');
+                    // Note: API integration disabled for standalone compatibility
+                    console.log('Date range selected:', start.format('YYYY-MM-DD'), 'to', end.format('YYYY-MM-DD'));
                 });
 
-                // Event delegation for dynamically added delete buttons
-                $(document).on('click', '.delete-entry', function() {
-                    var entryId = $(this).data('id');
-                    if (!entryId) {
-                        console.error("Entry ID is missing or empty.");
-                        return;
-                    }
-                    if (confirm("Are you sure you want to delete this time entry?")) {
-                        fetch("{% url 'delete_time_entry' %}", {
-                            method: "POST",
-                            headers: {
-                                "Content-Type": "application/x-www-form-urlencoded",
-                                "X-CSRFToken": "{{ csrf_token }}",
-                            },
-                            body: new URLSearchParams({ id: entryId }),
-                        })
-                        .then(response => response.json())
-                        .then(data => {
-                            if (data.success) {
-                                console.log("Success");
-                                // Remove the row from the table if the delete was successful
-                                this.closest("tr").remove();
-                            } else {
-                                console.log("Failed");
-                                alert("Failed to delete time entry.");
-                            }
-                        });
-                    }
-                });
+                // Standalone mode - delete functionality disabled
+                console.log('Sizzle loaded in standalone mode');
             });
         </script>
     {% endif %}
