@@ -324,16 +324,6 @@ python manage.py runserver
 
 Visit `/admin/` and create some organizations, then go to `/sizzle/` to see them available in time tracking.
 
-## What Features Work With/Without Integrations
-
-| Feature | Without Integrations | With Organization Model | With User Profile | With Slack |
-|---------|---------------------|------------------------|------------------|------------|
-| Time Logging | ✅ Full functionality | ✅ + Organization linking | ✅ Enhanced user info | ✅ + Notifications |
-| Daily Check-ins | ✅ Full functionality | ✅ Team organization | ✅ Rich profiles | ✅ + Auto-posting |
-| Leaderboards | ✅ Username-based | ✅ Organization groups | ✅ Profile pictures | ✅ + Slack sharing |
-| Reports | ✅ Basic reports | ✅ Org-level reporting | ✅ Detailed profiles | ✅ + Auto-summaries |
-| Reminders | ✅ Email only | ✅ Team notifications | ✅ Personalized | ✅ + Slack DMs |
-
 ## Contributing
 
 We'd love your help! Check out our [Contributing Guide](CONTRIBUTING.md) for detailed instructions on:
