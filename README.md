@@ -169,6 +169,171 @@ SIZZLE_ORGANIZATION_MODEL = 'myapp.Organization'
 SIZZLE_USERPROFILE_MODEL = 'myapp.UserProfile'
 ```
 
+## Optional External Integrations
+
+Sizzle can integrate with your existing models to add extra functionality. All integrations are completely optional - Sizzle works perfectly fine without them.
+
+### Organization Support
+
+If you have an Organization/Company model, you can link time logs to organizations:
+
+```python
+# settings.py
+SIZZLE_ORGANIZATION_MODEL = 'myapp.Organization'
+```
+
+**Requirements for your Organization model:**
+- Must have an `id` field (standard Django)
+- Should have a `name` field for display
+- Optional: `url` field for organization links
+
+**Example Organization model:**
+```python
+# myapp/models.py
+class Organization(models.Model):
+    name = models.CharField(max_length=100)
+    url = models.URLField(blank=True)
+    description = models.TextField(blank=True)
+    
+    def __str__(self):
+        return self.name
+```
+
+### User Profile Support  
+
+Connect to your existing user profile system:
+
+```python
+# settings.py
+SIZZLE_USERPROFILE_MODEL = 'myapp.UserProfile'
+```
+
+**Requirements for your UserProfile model:**
+- Must be linked to Django's User model
+- Used for enhanced user information in reports
+
+### Notification System Integration
+
+If you have a notification system, Sizzle can use it:
+
+```python
+# settings.py
+SIZZLE_NOTIFICATION_MODEL = 'myapp.Notification'
+```
+
+### Slack Integration
+
+For Slack notifications, you'll need:
+
+1. **Install Slack dependencies:**
+```bash
+pip install slack-bolt
+```
+
+2. **Configure Slack settings:**
+```python
+# settings.py
+SIZZLE_SLACK_ENABLED = True
+SIZZLE_SLACK_INTEGRATION_MODEL = 'myapp.SlackIntegration'
+
+# Slack API settings
+SLACK_BOT_TOKEN = 'xoxb-your-bot-token'
+SLACK_SIGNING_SECRET = 'your-signing-secret'
+```
+
+**Example SlackIntegration model:**
+```python
+# myapp/models.py
+class SlackIntegration(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    slack_user_id = models.CharField(max_length=50)
+    slack_channel = models.CharField(max_length=50, blank=True)
+    enabled = models.BooleanField(default=True)
+```
+
+## Testing With Optional Features
+
+Here's how to test Sizzle with organization support in a new Django project:
+
+### Step 1: Create Test Project
+```bash
+mkdir test_sizzle_project
+cd test_sizzle_project
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install django blt-sizzle
+django-admin startproject testproject .
+cd testproject
+python manage.py startapp myapp
+```
+
+### Step 2: Create Organization Model
+```python
+# myapp/models.py
+from django.db import models
+
+class Organization(models.Model):
+    name = models.CharField(max_length=100)
+    url = models.URLField(blank=True)
+    description = models.TextField(blank=True)
+    created = models.DateTimeField(auto_now_add=True)
+    
+    def __str__(self):
+        return self.name
+```
+
+### Step 3: Configure Settings
+```python
+# settings.py
+INSTALLED_APPS = [
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
+    
+    'myapp',     # Your app with Organization model
+    'sizzle',    # Sizzle app
+]
+
+# Optional: Connect Sizzle to your Organization model
+SIZZLE_ORGANIZATION_MODEL = 'myapp.Organization'
+
+# Optional: Customize templates
+SIZZLE_PARENT_BASE = 'base.html'
+SIZZLE_SHOW_SIDENAV = True
+
+# Add URLs
+# In your main urls.py, add:
+# path('sizzle/', include('sizzle.urls')),
+```
+
+### Step 4: Set Up Database
+```bash
+python manage.py makemigrations myapp
+python manage.py makemigrations sizzle
+python manage.py migrate
+python manage.py createsuperuser
+```
+
+### Step 5: Test Integration
+```bash
+python manage.py runserver
+```
+
+Visit `/admin/` and create some organizations, then go to `/sizzle/` to see them available in time tracking.
+
+## What Features Work With/Without Integrations
+
+| Feature | Without Integrations | With Organization Model | With User Profile | With Slack |
+|---------|---------------------|------------------------|------------------|------------|
+| Time Logging | ✅ Full functionality | ✅ + Organization linking | ✅ Enhanced user info | ✅ + Notifications |
+| Daily Check-ins | ✅ Full functionality | ✅ Team organization | ✅ Rich profiles | ✅ + Auto-posting |
+| Leaderboards | ✅ Username-based | ✅ Organization groups | ✅ Profile pictures | ✅ + Slack sharing |
+| Reports | ✅ Basic reports | ✅ Org-level reporting | ✅ Detailed profiles | ✅ + Auto-summaries |
+| Reminders | ✅ Email only | ✅ Team notifications | ✅ Personalized | ✅ + Slack DMs |
+
 ## Contributing
 
 We'd love your help! Check out our [Contributing Guide](CONTRIBUTING.md) for detailed instructions on:

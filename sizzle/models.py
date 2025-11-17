@@ -6,25 +6,80 @@ from django.conf import settings
 from django.db import models
 from django.utils import timezone
 
+from .utils.model_loader import get_organization_model
+
 logger = logging.getLogger(__name__)
 
 
 class TimeLog(models.Model):
-    """Time tracking model for sizzle functionality"""
+    """
+    Time tracking model for sizzle functionality.
+    
+    Uses optional organization integration - if no organization model
+    is configured, the organization field will remain None and the
+    TimeLog will work perfectly fine as a standalone time tracker.
+    """
 
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="sizzle_time_logs")
-    organization = models.ForeignKey(
-        getattr(settings, "SIZZLE_ORGANIZATION_MODEL", "website.Organization"),
-        on_delete=models.CASCADE,
-        related_name="sizzle_time_logs",
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, 
+        on_delete=models.CASCADE, 
+        related_name="sizzle_time_logs"
+    )
+    
+    # Organization integration is completely optional
+    # This field will remain None if no organization model is configured
+    organization_id = models.PositiveIntegerField(
+        null=True, 
+        blank=True,
+        help_text="Optional organization reference - safe for standalone usage"
+    )
+    organization_model = models.CharField(
+        max_length=255,
         null=True,
         blank=True,
+        help_text="Model path for organization (e.g., 'myapp.Organization')"
     )
+    
     start_time = models.DateTimeField()
     end_time = models.DateTimeField(null=True, blank=True)
     duration = models.DurationField(null=True, blank=True)
     github_issue_url = models.URLField(null=True, blank=True)
     created = models.DateTimeField(default=timezone.now, editable=False)
+
+    @property
+    def organization(self):
+        """
+        Safely get the organization object if available.
+        Returns None if no organization model is configured or object doesn't exist.
+        """
+        if not self.organization_id or not self.organization_model:
+            return None
+            
+        OrganizationModel = get_organization_model()
+        if not OrganizationModel:
+            return None
+            
+        try:
+            return OrganizationModel.objects.get(id=self.organization_id)
+        except (OrganizationModel.DoesNotExist, AttributeError):
+            return None
+
+    def set_organization(self, org_obj):
+        """
+        Safely set the organization if available.
+        Does nothing if no organization model is configured.
+        """
+        if not org_obj:
+            self.organization_id = None
+            self.organization_model = None
+            return
+            
+        OrganizationModel = get_organization_model()
+        if not OrganizationModel or not isinstance(org_obj, OrganizationModel):
+            return
+            
+        self.organization_id = org_obj.id
+        self.organization_model = f"{org_obj._meta.app_label}.{org_obj._meta.object_name}"
 
     def save(self, *args, **kwargs):
         if self.end_time and self.start_time <= self.end_time:
@@ -32,7 +87,10 @@ class TimeLog(models.Model):
         super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"TimeLog by {self.user.username} from {self.start_time} to {self.end_time}"
+        org_name = ""
+        if self.organization:
+            org_name = f" ({getattr(self.organization, 'name', 'Unknown Org')})"
+        return f"TimeLog by {self.user.username}{org_name} from {self.start_time} to {self.end_time}"
 
 
 class DailyStatusReport(models.Model):

@@ -1,6 +1,9 @@
 """
-Configuration for Sizzle app with sensible defaults for BLT.
+Configuration for Sizzle app with safe defaults for standalone usage.
 Follows Django's AUTH_USER_MODEL pattern for swappable models.
+
+Key principle: All external model integrations are OPTIONAL and default to None.
+This ensures Sizzle works as a standalone plugin without breaking.
 """
 from django.conf import settings
 
@@ -17,35 +20,43 @@ SIZZLE_SETTINGS = {
 }
 
 # ===============================
-# Model Configuration (Swappable)
+# Model Configuration (Optional External Integrations)
 # ===============================
+# 
+# IMPORTANT: All external model integrations default to None to ensure
+# Sizzle works standalone. Host projects can optionally enable integrations
+# by setting these in their Django settings.
 
-# Slack Integration Model (swappable)
+# Slack Integration Model (optional)
+# Example: SIZZLE_SLACK_INTEGRATION_MODEL = "myapp.SlackIntegration"
 SIZZLE_SLACK_INTEGRATION_MODEL = getattr(
     settings,
-    "SIZZLE_SLACK_INTEGRATION_MODEL",
-    "website.SlackIntegration",  # Default for BLT
+    "SIZZLE_SLACK_INTEGRATION_MODEL", 
+    None  # Default: disabled, no external dependency
 )
 
-# Organization Model (swappable)
+# Organization Model (optional)
+# Example: SIZZLE_ORGANIZATION_MODEL = "myapp.Organization"
 SIZZLE_ORGANIZATION_MODEL = getattr(
     settings,
     "SIZZLE_ORGANIZATION_MODEL",
-    "website.Organization",  # Default for BLT
+    None  # Default: disabled, no external dependency
 )
 
-# UserProfile Model (swappable)
+# UserProfile Model (optional)
+# Example: SIZZLE_USERPROFILE_MODEL = "myapp.UserProfile"
 SIZZLE_USERPROFILE_MODEL = getattr(
     settings,
     "SIZZLE_USERPROFILE_MODEL",
-    "website.UserProfile",  # Default for BLT
+    None  # Default: disabled, no external dependency
 )
 
-# Notification Model (swappable)
+# Notification Model (optional)
+# Example: SIZZLE_NOTIFICATION_MODEL = "myapp.Notification"
 SIZZLE_NOTIFICATION_MODEL = getattr(
     settings,
     "SIZZLE_NOTIFICATION_MODEL",
-    "website.Notification",  # Default for BLT
+    None  # Default: disabled, no external dependency
 )
 
 # ===============================

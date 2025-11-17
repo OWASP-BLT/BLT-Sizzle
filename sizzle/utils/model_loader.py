@@ -1,6 +1,9 @@
 """
 Helper utilities for loading models dynamically.
 This allows Sizzle to work with different Django projects that may have different model structures.
+
+Key principle: All external model integrations are OPTIONAL and default to None.
+This ensures Sizzle works as a standalone plugin without breaking.
 """
 import logging
 
@@ -18,6 +21,7 @@ def get_slack_integration_model():
     from sizzle.conf import SIZZLE_SLACK_INTEGRATION_MODEL
 
     if not SIZZLE_SLACK_INTEGRATION_MODEL:
+        logger.debug("SIZZLE_SLACK_INTEGRATION_MODEL not configured - Slack integration disabled")
         return None
 
     try:
@@ -36,10 +40,13 @@ def get_organization_model():
     """
     Get the Organization model configured in settings.
     Returns None if not configured or not available.
+    
+    This is now safe for standalone usage - returns None by default.
     """
     from sizzle.conf import SIZZLE_ORGANIZATION_MODEL
 
     if not SIZZLE_ORGANIZATION_MODEL:
+        logger.debug("SIZZLE_ORGANIZATION_MODEL not configured - Organization integration disabled")
         return None
 
     try:
@@ -49,7 +56,7 @@ def get_organization_model():
         logger.warning(
             f"SIZZLE_ORGANIZATION_MODEL refers to model "
             f'"{SIZZLE_ORGANIZATION_MODEL}" that has not been installed. '
-            f"Organization features will be limited. Error: {e}"
+            f"Organization integration will be disabled. Error: {e}"
         )
         return None
 
@@ -58,10 +65,13 @@ def get_userprofile_model():
     """
     Get the UserProfile model configured in settings.
     Returns None if not configured or not available.
+    
+    This is now safe for standalone usage - returns None by default.
     """
     from sizzle.conf import SIZZLE_USERPROFILE_MODEL
 
     if not SIZZLE_USERPROFILE_MODEL:
+        logger.debug("SIZZLE_USERPROFILE_MODEL not configured - UserProfile integration disabled")
         return None
 
     try:
@@ -71,7 +81,7 @@ def get_userprofile_model():
         logger.warning(
             f"SIZZLE_USERPROFILE_MODEL refers to model "
             f'"{SIZZLE_USERPROFILE_MODEL}" that has not been installed. '
-            f"User profile features will be limited. Error: {e}"
+            f"User profile features will be disabled. Error: {e}"
         )
         return None
 
@@ -80,10 +90,13 @@ def get_notification_model():
     """
     Get the Notification model configured in settings.
     Returns None if not configured or not available.
+    
+    This is now safe for standalone usage - returns None by default.
     """
     from sizzle.conf import SIZZLE_NOTIFICATION_MODEL
 
     if not SIZZLE_NOTIFICATION_MODEL:
+        logger.debug("SIZZLE_NOTIFICATION_MODEL not configured - Notification integration disabled")
         return None
 
     try:
@@ -155,41 +168,60 @@ def check_slack_dependencies():
 
 def validate_model_configuration():
     """
-    Validate that all required models are properly configured and available.
+    Validate that all models are properly configured and available.
     Returns a dictionary with model availability status.
+    
+    This is safe for standalone usage - all external models are optional.
     """
-    from sizzle.conf import SIZZLE_DAILY_CHECKINS_ENABLED, SIZZLE_EMAIL_REMINDERS_ENABLED, SIZZLE_SLACK_ENABLED
-
     status = {
         "slack_integration": None,
         "organization": None,
         "userprofile": None,
         "notification": None,
-        "reminder_settings": None,
         "timelog": None,
+        "daily_status_report": None,
         "slack_deps": None,
     }
 
-    # Check core sizzle models
+    # Check core sizzle models (these should always be available)
     try:
-        status["reminder_settings"] = get_reminder_settings_model() is not None
         status["timelog"] = get_timelog_model() is not None
+        status["daily_status_report"] = get_daily_status_report_model() is not None
     except ImproperlyConfigured:
-        status["reminder_settings"] = False
         status["timelog"] = False
+        status["daily_status_report"] = False
 
-    # Check optional models
-    if SIZZLE_SLACK_ENABLED:
-        status["slack_integration"] = get_slack_integration_model() is not None
-        slack_available, _ = check_slack_dependencies()
-        status["slack_deps"] = slack_available
-
-    if SIZZLE_EMAIL_REMINDERS_ENABLED or SIZZLE_DAILY_CHECKINS_ENABLED:
-        status["userprofile"] = get_userprofile_model() is not None
-
-    if SIZZLE_DAILY_CHECKINS_ENABLED:
-        status["notification"] = get_notification_model() is not None
-
+    # Check optional external models (safe to be None)
+    status["slack_integration"] = get_slack_integration_model() is not None
     status["organization"] = get_organization_model() is not None
+    status["userprofile"] = get_userprofile_model() is not None
+    status["notification"] = get_notification_model() is not None
+
+    # Check Slack dependencies
+    slack_available, _ = check_slack_dependencies()
+    status["slack_deps"] = slack_available
 
     return status
+
+
+def get_available_integrations():
+    """
+    Get a summary of available integrations for debugging/admin purposes.
+    Returns a user-friendly dictionary of what's available.
+    """
+    status = validate_model_configuration()
+    
+    integrations = {
+        "Core Features": {
+            "Time Logging": status["timelog"],
+            "Daily Status Reports": status["daily_status_report"],
+        },
+        "Optional External Integrations": {
+            "Organization Support": status["organization"],
+            "User Profiles": status["userprofile"], 
+            "Notifications": status["notification"],
+            "Slack Integration": status["slack_integration"] and status["slack_deps"],
+        }
+    }
+    
+    return integrations
