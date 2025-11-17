@@ -165,6 +165,10 @@ def add_sizzle_checkIN(request):
     # Get models dynamically
     DailyStatusReport = get_daily_status_report_model()
 
+    # Check if user already has a report for today
+    today = now().date()
+    today_report = DailyStatusReport.objects.filter(user=request.user, date=today).first()
+
     # Fetch yesterday's report
     yesterday = now().date() - timedelta(days=1)
     yesterday_report = DailyStatusReport.objects.filter(user=request.user, date=yesterday).first()
@@ -175,7 +179,11 @@ def add_sizzle_checkIN(request):
     return render(
         request,
         "add_sizzle_checkin.html",
-        {"yesterday_report": yesterday_report, "all_checkins": all_checkins},
+        {
+            "today_report": today_report,
+            "yesterday_report": yesterday_report, 
+            "all_checkins": all_checkins
+        },
     )
 
 
@@ -386,7 +394,11 @@ def sizzle_daily_log(request):
 
     except (ValidationError, IntegrityError) as e:
         logger.exception("Error creating daily status report")
-        messages.error(request, "An error occurred while submitting your report. Please try again.")
+        # Check if this is a unique constraint violation for user+date
+        if "UNIQUE constraint failed" in str(e) and "user_id" in str(e) and "date" in str(e):
+            messages.error(request, "You have already submitted a daily check-in for today. You can only submit one report per day.")
+        else:
+            messages.error(request, "An error occurred while submitting your report. Please try again.")
         return redirect("add_sizzle_checkin")
 
     return HttpResponseBadRequest("Invalid request method.")

@@ -39,13 +39,26 @@
             
             <div class="mb-6">
                 <h1 class="text-4xl font-semibold text-gray-800 text-center">Add Daily Check-In</h1>
+                {% if today_report %}
+                    <div class="mt-4 p-4 bg-yellow-100 border border-yellow-400 text-yellow-700 rounded-lg">
+                        <div class="flex">
+                            <svg class="h-5 w-5 text-yellow-400 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                            </svg>
+                            <div>
+                                <p class="font-medium">You've already submitted a check-in for today!</p>
+                                <p class="text-sm">You can only submit one daily check-in per day. Your report from today is already recorded.</p>
+                            </div>
+                        </div>
+                    </div>
+                {% endif %}
             </div>
             <div class="flex justify-center">
                 <form id="checkInForm"
                       method="post"
                       action="{% url 'sizzle_daily_log' %}"
-                      class="w-full max-w-5xl bg-white shadow-sm rounded-lg p-6"
-                      {% if not request.user.is_authenticated %}style="display:none;"{% endif %}>
+                      class="w-full max-w-5xl bg-white shadow-sm rounded-lg p-6 {% if today_report %}opacity-50{% endif %}"
+                      {% if not request.user.is_authenticated or today_report %}style="pointer-events: none;"{% endif %}>
                     {% csrf_token %}
                     <div class="form-group mb-10">
                         <label for="previous_work_card" class="block text-gray-700 font-medium mb-2">What did you work on previously?</label>
@@ -111,8 +124,9 @@
                     </div>
                     <div class="text-center">
                         <button type="submit"
-                                class="submit-button bg-red-500 text-white font-bold py-2 px-6 rounded-md hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-300">
-                            Submit
+                                class="submit-button bg-red-500 text-white font-bold py-2 px-6 rounded-md hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-300 {% if today_report %}cursor-not-allowed bg-gray-400 hover:bg-gray-400{% endif %}"
+                                {% if today_report %}disabled{% endif %}>
+                            {% if today_report %}Already Submitted{% else %}Submit{% endif %}
                         </button>
                     </div>
                 </form>
