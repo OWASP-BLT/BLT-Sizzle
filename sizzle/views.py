@@ -283,16 +283,20 @@ def TimeLogListView(request):
                 if organization_url and Organization:
                     organization, created = Organization.objects.get_or_create(
                         url=organization_url,
-                        defaults={'name': organization_url}
+                        defaults={'name': organization_url.split('/')[-1] or organization_url}
                     )
                 
                 # Create time log
                 time_log = TimeLog.objects.create(
                     user=request.user,
                     github_issue_url=github_issue_url,
-                    organization=organization,
                     start_time=now()
                 )
+                
+                # Set organization if available
+                if organization:
+                    time_log.set_organization(organization)
+                    time_log.save()
                 messages.success(request, "Time log started successfully!")
                 
             except Exception as e:
@@ -378,17 +382,12 @@ def sizzle_daily_log(request):
             )
 
             messages.success(request, "Daily status report submitted successfully.")
-            return JsonResponse(
-                {
-                    "success": "true",
-                    "message": "Daily status report submitted successfully.",
-                }
-            )
+            return redirect("add_sizzle_checkin")
 
     except (ValidationError, IntegrityError) as e:
         logger.exception("Error creating daily status report")
         messages.error(request, "An error occurred while submitting your report. Please try again.")
-        return redirect("sizzle")
+        return redirect("add_sizzle_checkin")
 
     return HttpResponseBadRequest("Invalid request method.")
 

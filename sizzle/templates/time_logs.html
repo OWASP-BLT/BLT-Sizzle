@@ -19,19 +19,40 @@
 {% endblock og_description %}
 {% block content %}
     <script src="https://cdn.tailwindcss.com" defer></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <div class="container mx-auto mt-12 p-6 bg-white rounded-lg shadow-md">
         <!-- Left Navigation -->
         {% if sizzle_has_sidenav %}
             {% include "includes/sidenav.html" %}
         {% endif %}
         <!-- Message Container -->
-        <div id="message-container" class="mb-4" aria-live="polite"></div>
+        <div id="message-container" class="mb-4" aria-live="polite">
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="rounded-md p-4 mb-4 {% if message.tags == 'success' %}bg-green-100 text-green-700 border-green-200{% elif message.tags == 'error' %}bg-red-100 text-red-700 border-red-200{% else %}bg-blue-100 text-blue-700 border-blue-200{% endif %} border">
+                        <div class="flex">
+                            <div class="flex-shrink-0">
+                                {% if message.tags == 'success' %}
+                                    <svg class="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                                    </svg>
+                                {% else %}
+                                    <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                                    </svg>
+                                {% endif %}
+                            </div>
+                            <div class="ml-3">
+                                <p class="text-sm">{{ message }}</p>
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        </div>
         <!-- Start Time Log Form -->
         {% if not active_time_log %}
-            <form id="start-time-log-form"
-                  method="post"
-                  action="{% url 'time_logs' %}"
-                  novalidate
+            <form method="post"
                   class="space-y-6 bg-white p-6 rounded-lg shadow-sm border border-gray-100">
                 {% csrf_token %}
                 <input type="hidden" name="action" value="start_timelog">
@@ -47,7 +68,6 @@
                            pattern="https?://.+"
                            placeholder="https://github.com/user/repo/issues/1">
                     <p class="text-xs text-gray-500">Enter a valid GitHub issue URL (e.g., https://github.com/user/repo/issues/1)</p>
-                    <div class="invalid-feedback text-red-500 text-sm mt-1"></div>
                 </div>
                 <!-- Organization Search -->
                 <div class="space-y-2 relative">
@@ -107,10 +127,16 @@
                         </svg>
                         <span class="text-lg font-semibold text-gray-700" id="elapsed-time">00:00:00</span>
                     </div>
-                    <button id="stop-button"
-                            class="mt-4 w-full flex justify-center py-3 px-6 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition">
-                        Stop Time Log
-                    </button>
+                    <form method="post" class="inline">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="stop_timelog">
+                        <input type="hidden" name="timelog_id" value="{{ active_time_log.id }}">
+                        <button type="submit"
+                                onclick="return confirm('Are you sure you want to stop the active time log?')"
+                                class="mt-4 w-full flex justify-center py-3 px-6 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition">
+                            Stop Time Log
+                        </button>
+                    </form>
                 </div>
             </div>
         {% endif %}
@@ -160,9 +186,9 @@
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm">
                                         {% if log.organization %}
-                                            <a href="https://{{ log.organization }}"
+                                            <a href="https://{{ log.organization.url }}"
                                                target="_blank"
-                                               class="text-blue-600 hover:underline">{{ log.organization }}</a>
+                                               class="text-blue-600 hover:underline">{{ log.organization.name|default:log.organization.url }}</a>
                                         {% else %}
                                             <span class="text-gray-400">-</span>
                                         {% endif %}
@@ -183,34 +209,7 @@
         </div>
     </div>
     <script>
-        // CSRF Token Setup
-        function getCookie(name) {
-            const cookies = document.cookie.split(';');
-            for (let cookie of cookies) {
-                const [key, value] = cookie.trim().split('=');
-                if (key === name) {
-                    return decodeURIComponent(value);
-                }
-            }
-            return null;
-        }
-
-        const csrftoken = getCookie('csrftoken');
-
-        // Setup AJAX with CSRF Token
-        $.ajaxSetup({
-            beforeSend: function(xhr, settings) {
-                if (!/^GET|HEAD|OPTIONS|TRACE$/i.test(settings.type) && !this.crossDomain) {
-                    xhr.setRequestHeader("X-CSRFToken", csrftoken);
-                }
-            }
-        });
-
         $(document).ready(function() {
-            const apiBaseUrl = '{% url "time_logs" %}';  // Use Django URL instead of API
-            const token = '{{ token|default:"" }}'; // Handle empty token safely
-            let timeLogId = null;
-            let timerInterval = null;
             const organizations_list = {{organizations_list | safe}};
 
             // Handle organization search
@@ -255,9 +254,8 @@
                 }
             });
 
-            // Initialize active time log if exists
+            // Initialize active time log timer if exists
             {% if active_time_log %}
-                timeLogId = {{ active_time_log.id }};
                 const startTime = new Date('{{ active_time_log.start_time|date:"c" }}').getTime();
 
                 function updateElapsedTime() {
@@ -272,91 +270,15 @@
 
                 // Initial update and start interval
                 updateElapsedTime();
-                timerInterval = setInterval(updateElapsedTime, 1000);
+                setInterval(updateElapsedTime, 1000);
             {% endif %}
 
-            // Form Validation
-            (function() {
-                const form = document.getElementById('start-time-log-form');
-                if (form) { // Check if the form exists
-                    form.addEventListener('submit', function(event) {
-                        if (!form.checkValidity()) {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            form.classList.add('was-validated');
-                        }
-                    }, false);
+            // Hide search results when clicking outside
+            $(document).click(function(event) {
+                if (!$(event.target).closest('#organization_search_input, #search_results').length) {
+                    $("#search_results").addClass("hidden");
                 }
-            })();
-
-            // Handle Start Time Log Form Submission - Standalone mode with basic validation
-            $('#start-time-log-form').on('submit', function(event){
-                const githubIssueUrl = $('#github_issue_url').val().trim();
-                const organizationURL = $('#organization_search_input').val().trim();
-
-                // Simple URL validation for GitHub and organization
-                const githubUrlPattern = /^https?:\/\/github\.com\/[^\/]+\/[^\/]+\/issues\/\d+$/;
-                if (!githubUrlPattern.test(githubIssueUrl)) {
-                    event.preventDefault();
-                    showMessage("Please provide a valid GitHub Issue URL.", "error");
-                    return;
-                }
-
-                const organizationUrlPattern = /^(https?:\/\/)?[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-                if (organizationURL && !organizationUrlPattern.test(organizationURL)) {
-                    event.preventDefault();
-                    showMessage("Please provide a valid Organization URL.", "error");
-                    return;
-                }
-
-                // Let the form submit normally in standalone mode
-                console.log('Form submitted with valid data');
             });
-
-            // Handle Stop Time Log Button Click - Standalone mode
-            $('#stop-button').on('click', function(){
-                if (!timeLogId) {
-                    showMessage("No active time log to stop.", "error");
-                    return;
-                }
-
-                if (!confirm('Are you sure you want to stop the active time log?')) {
-                    return;
-                }
-
-                // In standalone mode, create a form and submit it
-                const form = $('<form method="post" action="{% url "time_logs" %}">');
-                form.append('<input type="hidden" name="csrfmiddlewaretoken" value="' + csrftoken + '">');
-                form.append('<input type="hidden" name="action" value="stop_timelog">');
-                form.append('<input type="hidden" name="timelog_id" value="' + timeLogId + '">');
-                $('body').append(form);
-                form.submit();
-            });
-
-            // Message Display Function
-            function showMessage(message, type = 'error') {
-                const colors = {
-                    error: 'bg-red-100 text-red-700 border-red-200',
-                    success: 'bg-green-100 text-green-700 border-green-200'
-                };
-                
-                $('#message-container').html(`
-                    <div class="rounded-md p-4 mb-4 ${colors[type]} border">
-                        <div class="flex">
-                            <div class="flex-shrink-0">
-                                ${type === 'error' ? 
-                                    '<svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>' 
-                                    : 
-                                    '<svg class="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" /></svg>'
-                                }
-                            </div>
-                            <div class="ml-3">
-                                <p class="text-sm">${message}</p>
-                            </div>
-                        </div>
-                    </div>
-                `);
-            }
         });
     </script>
 {% endblock content %}
