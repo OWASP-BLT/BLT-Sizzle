@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sizzle"
-version = "0.1.8"
+version = "0.1.9"
 description = "A pluggable Django app for daily check-ins, time tracking, and team productivity monitoring"
 readme = "README.md"
 license = "MIT"
