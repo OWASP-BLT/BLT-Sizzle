@@ -13,7 +13,13 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.dateparse import parse_datetime
 from django.utils.timezone import now
 from rest_framework import status
-from rest_framework.authtoken.models import Token
+
+# Safe import for Token model - handle standalone mode
+try:
+    from rest_framework.authtoken.models import Token
+    AUTHTOKEN_AVAILABLE = True
+except ImportError:
+    AUTHTOKEN_AVAILABLE = False
 
 from sizzle.utils import format_timedelta, get_github_issue_title
 from sizzle.utils.model_loader import get_daily_status_report_model, get_organization_model, get_timelog_model
@@ -253,11 +259,76 @@ def TimeLogListView(request):
     TimeLog = get_timelog_model()
     Organization = get_organization_model()
 
+    # Handle POST requests for starting/stopping time logs
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        
+        if action == 'start_timelog':
+            # Check if user already has an active time log
+            active_log = TimeLog.objects.filter(user=request.user, end_time__isnull=True).first()
+            if active_log:
+                messages.error(request, "You already have an active time log.")
+                return redirect('time_logs')
+            
+            github_issue_url = request.POST.get('github_issue_url', '').strip()
+            organization_url = request.POST.get('organization_search_input', '').strip()
+            
+            if not github_issue_url:
+                messages.error(request, "GitHub Issue URL is required.")
+                return redirect('time_logs')
+            
+            try:
+                # Create organization if provided
+                organization = None
+                if organization_url and Organization:
+                    organization, created = Organization.objects.get_or_create(
+                        url=organization_url,
+                        defaults={'name': organization_url}
+                    )
+                
+                # Create time log
+                time_log = TimeLog.objects.create(
+                    user=request.user,
+                    github_issue_url=github_issue_url,
+                    organization=organization,
+                    start_time=now()
+                )
+                messages.success(request, "Time log started successfully!")
+                
+            except Exception as e:
+                logger.error(f"Error starting time log: {e}")
+                messages.error(request, "Error starting time log. Please try again.")
+            
+            return redirect('time_logs')
+        
+        elif action == 'stop_timelog':
+            timelog_id = request.POST.get('timelog_id')
+            if timelog_id:
+                try:
+                    time_log = TimeLog.objects.get(id=timelog_id, user=request.user, end_time__isnull=True)
+                    time_log.end_time = now()
+                    time_log.save()
+                    messages.success(request, "Time log stopped successfully!")
+                except TimeLog.DoesNotExist:
+                    messages.error(request, "Active time log not found.")
+                except Exception as e:
+                    logger.error(f"Error stopping time log: {e}")
+                    messages.error(request, "Error stopping time log. Please try again.")
+            
+            return redirect('time_logs')
+
+    # Handle GET request - display the page
     time_logs = TimeLog.objects.filter(user=request.user).order_by("-start_time")
     active_time_log = time_logs.filter(end_time__isnull=True).first()
 
     # print the all details of the active time log
-    token, created = Token.objects.get_or_create(user=request.user)
+    token = None
+    if AUTHTOKEN_AVAILABLE:
+        try:
+            token, created = Token.objects.get_or_create(user=request.user)
+        except Exception as e:
+            logger.warning(f"Could not create/retrieve auth token: {e}")
+            token = None
     organizations_list = []
     if Organization:
         organizations_list_queryset = Organization.objects.all().values("url", "name")
@@ -271,7 +342,7 @@ def TimeLogListView(request):
         {
             "time_logs": time_logs,
             "active_time_log": active_time_log,
-            "token": token.key,
+            "token": token.key if token else "",
             "organizations_list": organizations_list,
             "organization_url": organization_url,
         },
