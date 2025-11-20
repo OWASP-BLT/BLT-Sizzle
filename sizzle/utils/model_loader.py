@@ -125,19 +125,6 @@ def get_reminder_settings_model():
         )
 
 
-def get_timelog_model():
-    """
-    Get the TimeLog model from sizzle app.
-    This is internal to sizzle and should always be available.
-    """
-    try:
-        return apps.get_model("sizzle", "TimeLog")
-    except LookupError as e:
-        raise ImproperlyConfigured(
-            f"Could not load TimeLog model from sizzle app. " f"Make sure sizzle migrations have been run. Error: {e}"
-        )
-
-
 def get_daily_status_report_model():
     """
     Get the DailyStatusReport model from sizzle app.
@@ -178,17 +165,14 @@ def validate_model_configuration():
         "organization": None,
         "userprofile": None,
         "notification": None,
-        "timelog": None,
         "daily_status_report": None,
         "slack_deps": None,
     }
 
     # Check core sizzle models (these should always be available)
     try:
-        status["timelog"] = get_timelog_model() is not None
         status["daily_status_report"] = get_daily_status_report_model() is not None
     except ImproperlyConfigured:
-        status["timelog"] = False
         status["daily_status_report"] = False
 
     # Check optional external models (safe to be None)
@@ -213,7 +197,6 @@ def get_available_integrations():
     
     integrations = {
         "Core Features": {
-            "Time Logging": status["timelog"],
             "Daily Status Reports": status["daily_status_report"],
         },
         "Optional External Integrations": {

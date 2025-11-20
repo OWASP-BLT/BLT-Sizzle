@@ -1,12 +1,6 @@
 from django.contrib import admin
 
-from .models import DailyStatusReport, ReminderSettings, TimeLog
-
-
-@admin.register(TimeLog)
-class TimelogAdmin(admin.ModelAdmin):
-    pass
-
+from .models import DailyStatusReport, ReminderSettings
 
 @admin.register(DailyStatusReport)
 class DailyStatusReportAdmin(admin.ModelAdmin):

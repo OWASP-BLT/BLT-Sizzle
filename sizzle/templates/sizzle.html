@@ -1,24 +1,21 @@
 {% extends parent_base|default:"base.html" %}
 {% load static %}
 {% block title %}
-    Sizzle
+    Sizzle - Daily Check-in
 {% endblock title %}
 {% block description %}
-    View and manage your Sizzle reports. Track your time, review daily status updates, and see leaderboard rankings to monitor your progress.
+    View and manage your daily check-ins and status reports. Track your daily progress and connect with your team.
 {% endblock description %}
 {% block keywords %}
-    Sizzle Report, Time Tracking, Daily Status Report, Leaderboard, Work Progress, Track Time
+    Sizzle, Daily Check-in, Daily Status Report, Progress Tracking, Team Collaboration
 {% endblock keywords %}
 {% block og_title %}
-    Sizzle Report - Monitor Your Progress
+    Sizzle Daily Check-in - Monitor Your Progress
 {% endblock og_title %}
 {% block og_description %}
-    Access your Sizzle reports to track time, review daily status updates, and view leaderboard rankings. Stay on top of your work progress.
+    Access your daily check-ins and status reports to monitor progress and collaborate with your team.
 {% endblock og_description %}
 {% block content %}
-    <link rel="stylesheet"
-          type="text/css"
-          href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css" />
     <div class="container mx-auto p-6">
         <!-- Include the left navigation -->
         {% if sizzle_has_sidenav %}
@@ -27,16 +24,7 @@
         <!-- Main Content Section -->
         <div class="main-content w-full">
             <div class="flex justify-between items-center mb-8 mt-8">
-                <h1 class="text-4xl font-semibold text-gray-800 mb-8">Your Sizzle Report</h1>
-                {% if user.is_authenticated %}
-                    <div class="flex space-x-2">
-                        <input type="text"
-                               name="daterange"
-                               id="daterange"
-                               class="bg-red-500 text-white py-2 px-6 rounded-md shadow-md hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-300 cursor-pointer"
-                               readonly />
-                    </div>
-                {% endif %}
+                <h1 class="text-4xl font-semibold text-gray-800 mb-8">Daily Check-in Dashboard</h1>
             </div>
             <div class="flex space-x-10 items-center mb-8 mt-8">
                 <a href="{% url 'sizzle_docs' %}"
@@ -44,129 +32,115 @@
                     Sizzle Docs
                 </a>
                 {% if user.is_authenticated %}
-                    <a href="{% url 'time_logs' %}"
-                       class="bg-red-500 text-white py-2 px-6 rounded-md shadow-md hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-300 cursor-pointer">
-                        Start Tracking
-                    </a>
                     <a href="{% url 'sizzle_daily_log' %}"
                        class="bg-red-500 text-white py-2 px-6 rounded-md shadow-md hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-300 cursor-pointer">
                         Daily Status Report
                     </a>
+                    <a href="{% url 'checkIN' %}"
+                       class="bg-blue-500 text-white py-2 px-6 rounded-md shadow-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-300 cursor-pointer">
+                        View Check-ins
+                    </a>
+                    <a href="{% url 'add_sizzle_checkin' %}"
+                       class="bg-green-500 text-white py-2 px-6 rounded-md shadow-md hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-300 cursor-pointer">
+                        Add Check-in
+                    </a>
                 {% endif %}
             </div>
-            <!-- Report and Leaderboard Section -->
+            
+            <!-- Recent Reports and Active Users Section -->
             <div class="flex flex-col lg:flex-row lg:space-x-10">
-                <!-- Report Table -->
+                <!-- Recent Reports -->
                 {% if user.is_authenticated %}
-                    <div id="report-table" class="lg:w-1/2">
-                        <div class="bg-white shadow-lg rounded-lg overflow-hidden"
-                             id="report-item">
+                    <div id="recent-reports" class="lg:w-1/2">
+                        <div class="bg-white shadow-lg rounded-lg overflow-hidden">
                             <div class="bg-red-500 text-white text-center py-4 text-lg font-semibold border-b border-gray-400">
-                                {% if sizzle_data %}
-                                    {{ sizzle_data.date }}
-                                {% else %}
-                                    No Data
-                                {% endif %}
+                                Your Recent Check-ins
                             </div>
-                            <table class="min-w-full bg-white">
-                                <thead>
-                                    <tr class="bg-red-500 text-white text-sm uppercase tracking-wider">
-                                        <th class="text-left py-3 px-4 border-b border-gray-200">Issue Title</th>
-                                        <th class="text-left py-3 px-4 border-b border-gray-200">Started</th>
-                                        <th class="text-left py-3 px-4 border-b border-gray-200">Total</th>
-                                        <th class="text-left py-3 px-4 border-b border-gray-200">Action</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr>
-                                        <td class="py-3 px-4 border-b border-gray-200">
-                                            {% if sizzle_data %}
-                                                {{ sizzle_data.issue_title }}
-                                            {% else %}
-                                                No Data
-                                            {% endif %}
-                                        </td>
-                                        <td class="py-3 px-4 border-b border-gray-200">
-                                            {% if sizzle_data %}
-                                                {{ sizzle_data.start_time }}
-                                            {% else %}
-                                                No Data
-                                            {% endif %}
-                                        </td>
-                                        <td class="py-3 px-4 border-b border-gray-200">
-                                            {% if sizzle_data %}
-                                                {{ sizzle_data.duration }}
-                                            {% else %}
-                                                No Data
-                                            {% endif %}
-                                        </td>
-                                        <td class="py-3 px-4 border-b border-gray-200">
-                                            {% if sizzle_data %}
-                                                <span class="text-sm text-gray-500">ID: {{ sizzle_data.id }}</span>
-                                            {% else %}
-                                                <span class="text-sm text-gray-500">-</span>
-                                            {% endif %}
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
+                            {% if recent_reports %}
+                                <div class="max-h-96 overflow-y-auto">
+                                    {% for report in recent_reports %}
+                                        <div class="p-4 border-b border-gray-200 hover:bg-gray-50">
+                                            <div class="flex justify-between items-start">
+                                                <div class="flex-1">
+                                                    <div class="text-sm font-medium text-gray-900">
+                                                        {{ report.date|date:"F j, Y" }}
+                                                    </div>
+                                                    <div class="text-sm text-gray-600 mt-1">
+                                                        <span class="font-medium">Previous Work:</span> 
+                                                        {{ report.previous_work|truncatechars:100 }}
+                                                    </div>
+                                                    <div class="text-sm text-gray-600 mt-1">
+                                                        <span class="font-medium">Next Plan:</span> 
+                                                        {{ report.next_plan|truncatechars:100 }}
+                                                    </div>
+                                                </div>
+                                                <div class="ml-4">
+                                                    {% if report.goal_accomplished %}
+                                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                                            Goal Achieved
+                                                        </span>
+                                                    {% else %}
+                                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                                            In Progress
+                                                        </span>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                            <div class="mt-2 text-sm text-gray-500">
+                                                {{ report.current_mood }} • {{ report.created|date:"g:i A" }}
+                                            </div>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                <div class="p-8 text-center text-gray-500">
+                                    <div class="text-lg mb-2">No check-ins yet</div>
+                                    <div class="text-sm">Start by creating your first daily check-in!</div>
+                                </div>
+                            {% endif %}
                         </div>
                     </div>
                 {% endif %}
-                <!-- Leaderboard Section -->
+                
+                <!-- Active Community -->
                 <div class="mt-8 lg:mt-0 lg:w-1/2">
                     <div class="bg-white shadow-lg rounded-lg overflow-hidden">
-                        <div class="bg-red-500 text-white text-center py-4 text-lg font-semibold border-b border-gray-400">Leaderboard</div>
-                        <table class="min-w-full bg-white">
-                            <thead>
-                                <tr class="bg-red-500 text-white text-sm uppercase tracking-wider">
-                                    <th class="text-left py-3 px-4 border-b border-gray-200">Username</th>
-                                    <th class="text-left py-3 px-4 border-b border-gray-200">Total Duration</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for user in leaderboard %}
-                                    <tr>
-                                        <td class="py-3 px-4 border-b border-gray-200">
-                                            <span class="font-medium text-gray-900">{{ user.username }}</span>
-                                        </td>
-                                        <td class="py-3 px-4 border-b border-gray-200">{{ user.formatted_duration }}</td>
-                                    </tr>
+                        <div class="bg-red-500 text-white text-center py-4 text-lg font-semibold border-b border-gray-400">
+                            Active Community
+                        </div>
+                        {% if active_users %}
+                            <div class="max-h-96 overflow-y-auto">
+                                {% for user in active_users %}
+                                    <div class="p-4 border-b border-gray-200 hover:bg-gray-50">
+                                        <div class="flex items-center">
+                                            <div class="flex-shrink-0">
+                                                <div class="h-8 w-8 bg-red-500 rounded-full flex items-center justify-center">
+                                                    <span class="text-white text-sm font-medium">
+                                                        {{ user.user__username|first|upper }}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <div class="ml-3">
+                                                <div class="text-sm font-medium text-gray-900">
+                                                    {{ user.user__username }}
+                                                </div>
+                                                <div class="text-xs text-gray-500">
+                                                    Active in check-ins
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
                                 {% endfor %}
-                            </tbody>
-                        </table>
+                            </div>
+                        {% else %}
+                            <div class="p-8 text-center text-gray-500">
+                                <div class="text-lg mb-2">No active users yet</div>
+                                <div class="text-sm">Be the first to start using daily check-ins!</div>
+                            </div>
+                        {% endif %}
                     </div>
                 </div>
             </div>
         </div>
     </div>
-    {% if user.is_authenticated %}
-        <script type="text/javascript"
-                src="https://cdn.jsdelivr.net/jquery/latest/jquery.min.js"></script>
-        <script type="text/javascript"
-                src="https://cdn.jsdelivr.net/momentjs/latest/moment.min.js"></script>
-        <script type="text/javascript"
-                src="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.min.js"></script>
-        <script type="text/javascript">
-           $(function() {
-                // Initialize daterange picker
-                $('input[name="daterange"]').daterangepicker({
-                    opens: 'left',
-                    locale: {
-                        format: 'YYYY-MM-DD'
-                    }
-                }, function(start, end, label) {
-                    $('#report-date').text(start.format('D.M.YYYY') + ' - ' + end.format('D.M.YYYY') + ' Report');
-
-                    // Update date display only
-                    $('#report-date').text(start.format('D.M.YYYY') + ' - ' + end.format('D.M.YYYY') + ' Report');
-                    // Note: API integration disabled for standalone compatibility
-                    console.log('Date range selected:', start.format('YYYY-MM-DD'), 'to', end.format('YYYY-MM-DD'));
-                });
-
-                // Standalone mode - delete functionality disabled
-                console.log('Sizzle loaded in standalone mode');
-            });
-        </script>
-    {% endif %}
 {% endblock content %}

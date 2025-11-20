@@ -1,80 +1,99 @@
 {% extends parent_base|default:"base.html" %}
 {% load static %}
 {% block title %}
-    {{ user.username }}'s Sizzle Report
+    {{ user.username }}'s Daily Check-in Report
 {% endblock title %}
 {% block description %}
-    View the Sizzle report for {{ user.username }}. Track daily activities, issue titles, durations, and start times for an overview of their work progress.
+    View the daily check-in report for {{ user.username }}. Track daily status updates, work progress, and team contributions.
 {% endblock description %}
 {% block keywords %}
-    Sizzle Report, {{ user.username }}'s Report, Time Tracking, Work Progress, Issue Titles, Daily Activities
+    Daily Check-in Report, {{ user.username }}'s Report, Daily Status, Work Progress, Team Collaboration
 {% endblock keywords %}
 {% block og_title %}
-    {{ user.username }}'s Sizzle Report - Track Work Progress
+    {{ user.username }}'s Daily Check-in Report - Track Progress
 {% endblock og_title %}
 {% block og_description %}
-    Access the Sizzle report for {{ user.username }} to track daily activities, issue titles, durations, and start times. Get an overview of their work progress and time management.
+    Access the daily check-in report for {{ user.username }} to track daily status updates, work progress, and team contributions.
 {% endblock og_description %}
 {% block content %}
     {% if sizzle_has_sidenav %}
         {% include "includes/sidenav.html" %}
     {% endif %}
-    <div class="container">
-        <h1>{{ user.username }}'s Sizzle Report</h1>
-        <table class="table">
-            <thead>
-                <tr>
-                    <th nowrap>Date</th>
-                    <th>Issue Title</th>
-                    <th nowrap>Duration</th>
-                    <th nowrap>Start Time</th>
-                    <th nowrap>End Time</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for log in response_data %}
-                    <tr>
-                        <td nowrap>{{ log.date }}</td>
-                        <td>{{ log.issue_title }}</td>
-                        <td nowrap>{{ log.duration }}</td>
-                        <td nowrap>{{ log.start_time }}</td>
-                        <td nowrap>{{ log.end_time }}</td>
-                    </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        <canvas id="timeLogChart"></canvas>
+    <div class="container mx-auto p-6">
+        <div class="mb-8">
+            <h1 class="text-3xl font-bold text-gray-900 mb-4">{{ user.username }}'s Daily Check-in Report</h1>
+            <a href="{% url 'sizzle' %}" class="text-blue-600 hover:text-blue-800 text-sm">← Back to Dashboard</a>
+        </div>
+        
+        {% if response_data %}
+            <div class="bg-white shadow-lg rounded-lg overflow-hidden">
+                <div class="bg-red-500 text-white text-center py-4 text-lg font-semibold">
+                    Daily Check-ins
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Previous Work</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Next Plan</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Blockers</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Goal Status</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mood</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created At</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            {% for report in response_data %}
+                                <tr class="hover:bg-gray-50">
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                        {{ report.date }}
+                                    </td>
+                                    <td class="px-6 py-4 text-sm text-gray-900 max-w-xs">
+                                        <div class="truncate" title="{{ report.previous_work }}">
+                                            {{ report.previous_work|truncatechars:50 }}
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 text-sm text-gray-900 max-w-xs">
+                                        <div class="truncate" title="{{ report.next_plan }}">
+                                            {{ report.next_plan|truncatechars:50 }}
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 text-sm text-gray-900 max-w-xs">
+                                        <div class="truncate" title="{{ report.blockers }}">
+                                            {{ report.blockers|truncatechars:50 }}
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        {% if report.goal_accomplished == "Yes" %}
+                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                                Achieved
+                                            </span>
+                                        {% else %}
+                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                                In Progress
+                                            </span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        {{ report.current_mood }}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        {{ report.created }}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        {% else %}
+            <div class="bg-white shadow-lg rounded-lg overflow-hidden">
+                <div class="p-8 text-center">
+                    <div class="text-gray-400 text-lg mb-4">No check-ins found</div>
+                    <div class="text-gray-600">{{ user.username }} hasn't submitted any daily check-ins yet.</div>
+                </div>
+            </div>
+        {% endif %}
     </div>
-    <script>
-        // Chart.js functionality - uncomment when Chart.js is included
-        /*
-        const ctx = document.getElementById('timeLogChart').getContext('2d');
-        const responseData = {{ response_data|safe }};
-        
-        // Extract labels and data from response_data
-        const labels = responseData.map(item => item.date);
-        const data = responseData.map(item => parseInt(item.duration) || 0);
-        
-        const timeLogChart = new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: labels,
-                datasets: [{
-                    label: 'Duration (minutes)',
-                    data: data,
-                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                    borderColor: 'rgba(75, 192, 192, 1)',
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                scales: {
-                    y: {
-                        beginAtZero: true
-                    }
-                }
-            }
-        });
-        */
-    </script>
 {% endblock content %}

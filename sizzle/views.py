@@ -7,7 +7,6 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError
-from django.db.models import Sum
 from django.http import HttpResponseBadRequest, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.dateparse import parse_datetime
@@ -21,8 +20,7 @@ try:
 except ImportError:
     AUTHTOKEN_AVAILABLE = False
 
-from sizzle.utils import format_timedelta, get_github_issue_title
-from sizzle.utils.model_loader import get_daily_status_report_model, get_organization_model, get_timelog_model
+from sizzle.utils.model_loader import get_daily_status_report_model, get_organization_model
 
 logger = logging.getLogger(__name__)
 
@@ -33,59 +31,32 @@ def sizzle_docs(request):
 
 def sizzle(request):
     # Get models dynamically
-    TimeLog = get_timelog_model()
+    DailyStatusReport = get_daily_status_report_model()
 
-    # Aggregate leaderboard data: username and total_duration
-    leaderboard_qs = (
-        TimeLog.objects.values("user__username").annotate(total_duration=Sum("duration")).order_by("-total_duration")
-    )
-
-    # Process leaderboard to include formatted_duration
-    leaderboard = []
-    for entry in leaderboard_qs:
-        username = entry["user__username"]
-        total_duration = entry["total_duration"] or timedelta()  # Handle None
-        formatted_duration = format_timedelta(total_duration)
-        leaderboard.append(
-            {
-                "username": username,
-                "formatted_duration": formatted_duration,
-            }
+    # Get recent daily status reports for display
+    recent_reports = []
+    if request.user.is_authenticated:
+        recent_reports = (
+            DailyStatusReport.objects.filter(user=request.user)
+            .order_by("-date")
+            .select_related("user")
+            [:5]  # Show last 5 reports
         )
 
-    # Initialize sizzle_data
-    sizzle_data = None
-
-    if request.user.is_authenticated:
-        last_data = TimeLog.objects.filter(user=request.user).order_by("-created").first()
-
-        if last_data:
-            all_data = TimeLog.objects.filter(user=request.user, created__date=last_data.created.date()).order_by(
-                "created"
-            )
-
-            total_duration = sum((entry.duration for entry in all_data if entry.duration), timedelta())
-
-            formatted_duration = format_timedelta(total_duration)
-
-            github_issue_url = all_data.first().github_issue_url
-            issue_title = get_github_issue_title(github_issue_url)
-
-            start_time = all_data.first().start_time.strftime("%I:%M %p")
-            date = last_data.created.strftime("%d %B %Y")
-
-            sizzle_data = {
-                "id": last_data.id,
-                "issue_title": issue_title,
-                "duration": formatted_duration,
-                "start_time": start_time,
-                "date": date,
-            }
+    # Get all users who have submitted reports (for community visibility)
+    active_users = (
+        DailyStatusReport.objects.values("user__username")
+        .distinct()
+        .order_by("user__username")
+    )
 
     return render(
         request,
         "sizzle.html",
-        {"sizzle_data": sizzle_data, "leaderboard": leaderboard},
+        {
+            "recent_reports": recent_reports,
+            "active_users": active_users,
+        },
     )
 
 
@@ -205,162 +176,6 @@ def checkIN_detail(request, report_id):
     }
     return render(request, "checkin_detail.html", context)
 
-
-def TimeLogListAPIView(request):
-    if not request.user.is_authenticated:
-        return JsonResponse({"error": "Unauthorized"}, status=status.HTTP_401_UNAUTHORIZED)
-
-    # Get models dynamically
-    TimeLog = get_timelog_model()
-
-    start_date_str = request.GET.get("start_date")
-    end_date_str = request.GET.get("end_date")
-
-    if not start_date_str or not end_date_str:
-        return JsonResponse(
-            {"error": "Both start_date and end_date are required."},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-    start_date = parse_datetime(start_date_str)
-    end_date = parse_datetime(end_date_str)
-
-    if not start_date or not end_date:
-        return JsonResponse({"error": "Invalid date format."}, status=status.HTTP_400_BAD_REQUEST)
-
-    time_logs = TimeLog.objects.filter(user=request.user, created__range=[start_date, end_date]).order_by("created")
-
-    grouped_logs = defaultdict(list)
-    for log in time_logs:
-        date_str = log.created.strftime("%Y-%m-%d")
-        grouped_logs[date_str].append(log)
-
-    response_data = []
-    for date, logs in grouped_logs.items():
-        first_log = logs[0]
-        total_duration = sum((log.duration for log in logs if log.duration), timedelta())
-
-        total_duration_seconds = total_duration.total_seconds()
-        formatted_duration = f"{int(total_duration_seconds // 60)} min {int(total_duration_seconds % 60)} sec"
-
-        issue_title = get_github_issue_title(first_log.github_issue_url)
-
-        start_time = first_log.start_time.strftime("%I:%M %p")
-        formatted_date = first_log.created.strftime("%d %B %Y")
-
-        day_data = {
-            "id": first_log.id,
-            "issue_title": issue_title,
-            "duration": formatted_duration,
-            "start_time": start_time,
-            "date": formatted_date,
-        }
-
-        response_data.append(day_data)
-
-    return JsonResponse(response_data, safe=False, status=status.HTTP_200_OK)
-
-
-@login_required
-def TimeLogListView(request):
-    # Get models dynamically
-    TimeLog = get_timelog_model()
-    Organization = get_organization_model()
-
-    # Handle POST requests for starting/stopping time logs
-    if request.method == 'POST':
-        action = request.POST.get('action')
-        
-        if action == 'start_timelog':
-            # Check if user already has an active time log
-            active_log = TimeLog.objects.filter(user=request.user, end_time__isnull=True).first()
-            if active_log:
-                messages.error(request, "You already have an active time log.")
-                return redirect('time_logs')
-            
-            github_issue_url = request.POST.get('github_issue_url', '').strip()
-            organization_url = request.POST.get('organization_search_input', '').strip()
-            
-            if not github_issue_url:
-                messages.error(request, "GitHub Issue URL is required.")
-                return redirect('time_logs')
-            
-            try:
-                # Create organization if provided
-                organization = None
-                if organization_url and Organization:
-                    organization, created = Organization.objects.get_or_create(
-                        url=organization_url,
-                        defaults={'name': organization_url.split('/')[-1] or organization_url}
-                    )
-                
-                # Create time log
-                time_log = TimeLog.objects.create(
-                    user=request.user,
-                    github_issue_url=github_issue_url,
-                    start_time=now()
-                )
-                
-                # Set organization if available
-                if organization:
-                    time_log.set_organization(organization)
-                    time_log.save()
-                messages.success(request, "Time log started successfully!")
-                
-            except Exception as e:
-                logger.error(f"Error starting time log: {e}")
-                messages.error(request, "Error starting time log. Please try again.")
-            
-            return redirect('time_logs')
-        
-        elif action == 'stop_timelog':
-            timelog_id = request.POST.get('timelog_id')
-            if timelog_id:
-                try:
-                    time_log = TimeLog.objects.get(id=timelog_id, user=request.user, end_time__isnull=True)
-                    time_log.end_time = now()
-                    time_log.save()
-                    messages.success(request, "Time log stopped successfully!")
-                except TimeLog.DoesNotExist:
-                    messages.error(request, "Active time log not found.")
-                except Exception as e:
-                    logger.error(f"Error stopping time log: {e}")
-                    messages.error(request, "Error stopping time log. Please try again.")
-            
-            return redirect('time_logs')
-
-    # Handle GET request - display the page
-    time_logs = TimeLog.objects.filter(user=request.user).order_by("-start_time")
-    active_time_log = time_logs.filter(end_time__isnull=True).first()
-
-    # print the all details of the active time log
-    token = None
-    if AUTHTOKEN_AVAILABLE:
-        try:
-            token, created = Token.objects.get_or_create(user=request.user)
-        except Exception as e:
-            logger.warning(f"Could not create/retrieve auth token: {e}")
-            token = None
-    organizations_list = []
-    if Organization:
-        organizations_list_queryset = Organization.objects.all().values("url", "name")
-        organizations_list = list(organizations_list_queryset)
-    organization_url = None
-    if active_time_log and active_time_log.organization:
-        organization_url = active_time_log.organization.url
-    return render(
-        request,
-        "time_logs.html",
-        {
-            "time_logs": time_logs,
-            "active_time_log": active_time_log,
-            "token": token.key if token else "",
-            "organizations_list": organizations_list,
-            "organization_url": organization_url,
-        },
-    )
-
-
 @login_required
 def sizzle_daily_log(request):
     # Get models dynamically
@@ -407,40 +222,29 @@ def sizzle_daily_log(request):
 @login_required
 def user_sizzle_report(request, username):
     # Get models dynamically
-    TimeLog = get_timelog_model()
+    DailyStatusReport = get_daily_status_report_model()
 
     user_model = get_user_model()
     user = get_object_or_404(user_model, username=username)
-    time_logs = TimeLog.objects.filter(user=user).order_by("-start_time")
-
-    grouped_logs = defaultdict(list)
-    for log in time_logs:
-        date_str = log.created.strftime("%Y-%m-%d")
-        grouped_logs[date_str].append(log)
+    
+    # Get daily status reports for the user
+    reports = (
+        DailyStatusReport.objects.filter(user=user)
+        .order_by("-date")
+        .select_related("user")
+    )
 
     response_data = []
-    for date, logs in grouped_logs.items():
-        first_log = logs[0]
-        total_duration = sum((log.duration for log in logs if log.duration), timedelta())
-
-        total_duration_seconds = total_duration.total_seconds()
-        formatted_duration = f"{int(total_duration_seconds // 60)} min {int(total_duration_seconds % 60)} sec"
-
-        issue_title = get_github_issue_title(first_log.github_issue_url)
-
-        start_time = first_log.start_time.strftime("%I:%M %p")
-        end_time = first_log.end_time.strftime("%I:%M %p") if first_log.end_time else "In Progress"
-        formatted_date = first_log.created.strftime("%d %B %Y")
-
-        day_data = {
-            "issue_title": issue_title,
-            "duration": formatted_duration,
-            "start_time": start_time,
-            "end_time": end_time,
-            "date": formatted_date,
-        }
-
-        response_data.append(day_data)
+    for report in reports:
+        response_data.append({
+            "date": report.date.strftime("%d %B %Y"),
+            "previous_work": report.previous_work,
+            "next_plan": report.next_plan,
+            "blockers": report.blockers,
+            "goal_accomplished": "Yes" if report.goal_accomplished else "No",
+            "current_mood": report.current_mood,
+            "created": report.created.strftime("%I:%M %p"),
+        })
 
     return render(
         request,
