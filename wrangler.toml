@@ -3,6 +3,10 @@ main = "src/index.py"
 compatibility_date = "2024-01-01"
 compatibility_flags = ["python_workers"]
 
+# Scheduled notifications - runs every hour to check for users needing reminders
+[triggers]
+crons = ["0 * * * *"]
+
 # D1 Database binding
 [[d1_databases]]
 binding = "DB"

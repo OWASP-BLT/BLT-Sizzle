@@ -1003,5 +1003,15 @@ async def handle_test_notification(request, env):
 
 # Main entry point for Cloudflare Worker
 async def on_fetch(request, env):
-    """Worker entry point"""
+    """Worker entry point for HTTP requests"""
     return await handle_request(request, env)
+
+
+async def on_scheduled(event, env):
+    """Worker entry point for scheduled/cron events"""
+    try:
+        # Import scheduler module
+        from scheduler import handle_scheduled
+        await handle_scheduled(event, env)
+    except Exception as e:
+        print(f"Error in scheduled event: {e}")
