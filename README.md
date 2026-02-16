@@ -13,6 +13,8 @@ A simple, secure daily check-in application built as a Cloudflare Python Worker.
 - **Customizable Notifications**: Set your preferred reminder time and timezone
 - **Beautiful UI**: Clean, modern interface with gradient design
 
+> **⚠️ Security Note**: The current implementation uses base64 encoding as a placeholder for encryption. For production use with sensitive data, implement proper AES-GCM encryption using the Web Crypto API. See [SECURITY.md](SECURITY.md) for details.
+
 ## 🚀 Quick Deploy to Cloudflare Workers
 
 [![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/OWASP-BLT/BLT-Sizzle)
