@@ -246,7 +246,11 @@ async def send_via_mailgun(to_email, html_content, text_content, env):
     try:
         # Mailgun uses basic auth
         import base64
+        from urllib.parse import urlencode
         auth = base64.b64encode(f"api:{env.EMAIL_API_KEY}".encode()).decode()
+        
+        # Properly URL-encode form data
+        encoded_body = urlencode(form_data)
         
         response = await fetch(url, {
             "method": "POST",
@@ -254,7 +258,7 @@ async def send_via_mailgun(to_email, html_content, text_content, env):
                 "Authorization": f"Basic {auth}",
                 "Content-Type": "application/x-www-form-urlencoded"
             },
-            "body": "&".join([f"{k}={v}" for k, v in form_data.items()])
+            "body": encoded_body
         })
         return response.ok
     except Exception as e:
@@ -296,8 +300,10 @@ async def handle_scheduled(event, env):
             try:
                 notif_hour, notif_minute = map(int, user['notification_time'].split(':'))
                 
-                # Simple timezone conversion (in production, use proper timezone library)
-                # For now, we'll send if the time matches within an hour window
+                # Note: This is a simplified timezone handling
+                # In production, use a proper timezone library to convert user's timezone to UTC
+                # For now, assuming notification_time is already in UTC or within acceptable window
+                # TODO: Add proper timezone conversion using pytz or similar library
                 time_diff = abs((current_hour * 60 + current_minute) - (notif_hour * 60 + notif_minute))
                 
                 if time_diff <= 30:  # Within 30 minutes window

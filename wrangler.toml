@@ -18,5 +18,9 @@ database_id = "placeholder-database-id"
 binding = "KV"
 id = "placeholder-kv-id"
 
-[vars]
-ENCRYPTION_KEY = ""
+# Use secrets for encryption key in production:
+# wrangler secret put ENCRYPTION_KEY
+# 
+# For development only, you can uncomment and set a key here:
+# [vars]
+# ENCRYPTION_KEY = "development-key-only-not-for-production"

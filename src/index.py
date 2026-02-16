@@ -19,8 +19,9 @@ async def encrypt_data(data, key):
         key_bytes = key.encode('utf-8')
         key_hash = hashlib.sha256(key_bytes).digest()
         
-        # For simplicity, use base64 encoding with a simple XOR cipher
-        # In production, use proper Web Crypto API
+        # TODO: This is a placeholder implementation using base64 encoding
+        # For production, implement proper AES-GCM encryption using Web Crypto API
+        # See SECURITY.md for implementation details
         encrypted = base64.b64encode(data.encode('utf-8')).decode('utf-8')
         iv_b64 = base64.b64encode(bytes(iv)).decode('utf-8')
         
@@ -43,8 +44,9 @@ async def decrypt_data(encrypted_data, key):
         
         iv_b64, encrypted = parts
         
-        # For simplicity, use base64 decoding
-        # In production, use proper Web Crypto API
+        # TODO: This is a placeholder implementation using base64 decoding
+        # For production, implement proper AES-GCM decryption using Web Crypto API
+        # See SECURITY.md for implementation details
         decrypted = base64.b64decode(encrypted).decode('utf-8')
         
         return decrypted
@@ -606,7 +608,7 @@ SETTINGS_HTML = """<!DOCTYPE html>
                     if (settings.notificationTime) document.getElementById('notificationTime').value = settings.notificationTime;
                     if (settings.timezone) document.getElementById('timezone').value = settings.timezone;
                     if (settings.slackWebhookUrl) document.getElementById('slackWebhook').value = settings.slackWebhookUrl;
-                    document.getElementById('emailNotifications').checked = settings.emailNotifications == 1;
+                    document.getElementById('emailNotifications').checked = settings.emailNotifications === 1;
                 }
             } catch (error) {
                 console.error('Error loading settings:', error);
@@ -780,7 +782,11 @@ async def handle_checkin(request, env):
                               headers={"Content-Type": "application/json"})
         
         # Get encryption key from environment
-        encryption_key = env.ENCRYPTION_KEY if hasattr(env, 'ENCRYPTION_KEY') and env.ENCRYPTION_KEY else 'default-key-change-me'
+        if not hasattr(env, 'ENCRYPTION_KEY') or not env.ENCRYPTION_KEY:
+            return Response.new(json.dumps({"error": "Encryption key not configured"}), 
+                              status=500, 
+                              headers={"Content-Type": "application/json"})
+        encryption_key = env.ENCRYPTION_KEY
         
         # Encrypt sensitive data
         encrypted_previous = await encrypt_data(previous_work, encryption_key)
@@ -837,7 +843,11 @@ async def handle_get_latest_checkin(request, env):
                               headers={"Content-Type": "application/json"})
         
         # Decrypt data
-        encryption_key = env.ENCRYPTION_KEY if hasattr(env, 'ENCRYPTION_KEY') and env.ENCRYPTION_KEY else 'default-key-change-me'
+        if not hasattr(env, 'ENCRYPTION_KEY') or not env.ENCRYPTION_KEY:
+            return Response.new(json.dumps({"error": "Encryption key not configured"}), 
+                              status=500, 
+                              headers={"Content-Type": "application/json"})
+        encryption_key = env.ENCRYPTION_KEY
         today_plan = await decrypt_data(result['encrypted_today_plan'] if result['encrypted_today_plan'] else '', encryption_key)
         
         return Response.new(json.dumps({

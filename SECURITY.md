@@ -6,8 +6,10 @@ All sensitive user data (check-in content) is encrypted before being stored in t
 
 ### Encryption Implementation
 
+**IMPORTANT**: The current implementation uses base64 encoding as a placeholder. This provides obfuscation but NOT true encryption. For production use with sensitive data, you MUST implement proper AES-GCM encryption using the Web Crypto API (see implementation example below).
+
 1. **Encryption Key**: A secure key is required and should be set as a Cloudflare Worker secret
-2. **Algorithm**: Currently uses base64 encoding with IV (development). For production, implement proper AES-GCM via Web Crypto API
+2. **Algorithm**: Currently uses base64 encoding with IV (development placeholder). For production, implement proper AES-GCM via Web Crypto API
 3. **Data Protected**: 
    - Previous work descriptions
    - Today's plans
