@@ -1,4 +1,4 @@
-name = "blt-sizzle-checkin"
+name = "blt-sizzle"
 main = "src/index.py"
 compatibility_date = "2024-01-01"
 compatibility_flags = ["python_workers"]
@@ -10,13 +10,9 @@ crons = ["0 * * * *"]
 # D1 Database binding
 [[d1_databases]]
 binding = "DB"
-database_name = "checkin-db"
+database_name = "sizzle-db"
 database_id = "placeholder-database-id"
 
-# KV namespace for sessions (optional)
-[[kv_namespaces]]
-binding = "KV"
-id = "placeholder-kv-id"
 
 # Use secrets for encryption key in production:
 # wrangler secret put ENCRYPTION_KEY
