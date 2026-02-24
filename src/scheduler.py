@@ -16,7 +16,7 @@ async def send_slack_notification(webhook_url, user_email, checkin_url):
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
-                    "text": f"*Good morning! Time for your daily check-in* ✨\n\nTake a moment to reflect on your progress and plan your day."
+                    "text": "*Good morning! Time for your daily check-in* ✨\n\nTake a moment to reflect on your progress and plan your day."
                 }
             },
             {

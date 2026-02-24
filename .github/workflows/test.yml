@@ -1,0 +1,53 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python dependencies
+        run: pip install pytest ruff
+
+      - name: Lint Python code with Ruff
+        run: ruff check src/ tests/
+
+      - name: Run unit tests
+        run: python -m pytest tests/test_unit.py -v
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+
+      - name: Install Node dependencies
+        run: npm install
+
+      - name: Validate schema SQL
+        run: |
+          python -c "
+          import sqlite3, tempfile, os
+          db_path = os.path.join(tempfile.gettempdir(), 'test.db')
+          conn = sqlite3.connect(db_path)
+          with open('schema.sql') as f:
+              conn.executescript(f.read())
+          # Verify tables exist
+          tables = conn.execute(\"SELECT name FROM sqlite_master WHERE type='table'\").fetchall()
+          table_names = [t[0] for t in tables]
+          assert 'users' in table_names, 'users table not found'
+          assert 'checkins' in table_names, 'checkins table not found'
+          conn.close()
+          os.unlink(db_path)
+          print('Schema validation passed')
+          "

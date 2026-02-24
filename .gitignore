@@ -45,3 +45,7 @@ Thumbs.db
 # Environment variables
 .env
 .env.local
+
+# Test artifacts
+.pytest_cache/
+node_modules/

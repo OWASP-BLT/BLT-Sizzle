@@ -9,7 +9,10 @@
     "tail": "wrangler tail",
     "db:create": "wrangler d1 create checkin-db",
     "db:init": "wrangler d1 execute checkin-db --file=./schema.sql",
-    "db:query": "wrangler d1 execute checkin-db --command"
+    "db:query": "wrangler d1 execute checkin-db --command",
+    "test": "python -m pytest tests/test_unit.py -v",
+    "test:integration": "python -m pytest tests/test_api.py -v",
+    "lint": "ruff check src/ tests/"
   },
   "keywords": [
     "cloudflare",

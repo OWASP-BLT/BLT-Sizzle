@@ -1,8 +1,22 @@
-from js import Response, Request, Headers, crypto, TextEncoder, TextDecoder, URL, fetch
+from js import Response, crypto, URL, fetch
 import json
 import base64
 import hashlib
-from datetime import datetime, date
+from datetime import date
+
+
+def json_response(data, status=200):
+    """Create a JSON response with proper headers."""
+    return Response.new(
+        json.dumps(data),
+        status=status,
+        headers={
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type",
+        },
+    )
 
 
 # Encryption utilities using Web Crypto API
@@ -17,7 +31,7 @@ async def encrypt_data(data, key):
         
         # Convert key to bytes
         key_bytes = key.encode('utf-8')
-        key_hash = hashlib.sha256(key_bytes).digest()
+        hashlib.sha256(key_bytes).digest()
         
         # TODO: This is a placeholder implementation using base64 encoding
         # For production, implement proper AES-GCM encryption using Web Crypto API
@@ -688,6 +702,15 @@ async def handle_request(request, env):
     path = url.pathname
     method = request.method
     
+    # Handle CORS preflight requests
+    if method == "OPTIONS":
+        return Response.new("", status=204, headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type",
+            "Access-Control-Max-Age": "86400",
+        })
+    
     # Initialize database if needed
     if not hasattr(env, '_db_initialized'):
         await init_database(env)
@@ -777,15 +800,11 @@ async def handle_checkin(request, env):
         mood = data.get('mood', '😊')
         
         if not user_id:
-            return Response.new(json.dumps({"error": "User ID required"}), 
-                              status=400, 
-                              headers={"Content-Type": "application/json"})
+            return json_response({"error": "User ID required"}, status=400)
         
         # Get encryption key from environment
         if not hasattr(env, 'ENCRYPTION_KEY') or not env.ENCRYPTION_KEY:
-            return Response.new(json.dumps({"error": "Encryption key not configured"}), 
-                              status=500, 
-                              headers={"Content-Type": "application/json"})
+            return json_response({"error": "Encryption key not configured"}, status=500)
         encryption_key = env.ENCRYPTION_KEY
         
         # Encrypt sensitive data
@@ -808,14 +827,11 @@ async def handle_checkin(request, env):
             INSERT OR IGNORE INTO users (user_id) VALUES (?)
         """).bind(user_id).run()
         
-        return Response.new(json.dumps({"success": True, "message": "Check-in saved"}),
-                          headers={"Content-Type": "application/json"})
+        return json_response({"success": True, "message": "Check-in saved"})
         
     except Exception as e:
         print(f"Error handling check-in: {e}")
-        return Response.new(json.dumps({"error": str(e)}), 
-                          status=500, 
-                          headers={"Content-Type": "application/json"})
+        return json_response({"error": str(e)}, status=500)
 
 
 async def handle_get_latest_checkin(request, env):
@@ -825,9 +841,7 @@ async def handle_get_latest_checkin(request, env):
         user_id = url.searchParams.get('userId')
         
         if not user_id:
-            return Response.new(json.dumps({"error": "User ID required"}), 
-                              status=400, 
-                              headers={"Content-Type": "application/json"})
+            return json_response({"error": "User ID required"}, status=400)
         
         # Get latest check-in
         result = await env.DB.prepare("""
@@ -839,28 +853,23 @@ async def handle_get_latest_checkin(request, env):
         """).bind(user_id).first()
         
         if not result:
-            return Response.new(json.dumps({}), 
-                              headers={"Content-Type": "application/json"})
+            return json_response({})
         
         # Decrypt data
         if not hasattr(env, 'ENCRYPTION_KEY') or not env.ENCRYPTION_KEY:
-            return Response.new(json.dumps({"error": "Encryption key not configured"}), 
-                              status=500, 
-                              headers={"Content-Type": "application/json"})
+            return json_response({"error": "Encryption key not configured"}, status=500)
         encryption_key = env.ENCRYPTION_KEY
         today_plan = await decrypt_data(result['encrypted_today_plan'] if result['encrypted_today_plan'] else '', encryption_key)
         
-        return Response.new(json.dumps({
+        return json_response({
             "todayPlan": today_plan,
             "mood": result['mood'],
             "date": result['checkin_date']
-        }), headers={"Content-Type": "application/json"})
+        })
         
     except Exception as e:
         print(f"Error getting latest check-in: {e}")
-        return Response.new(json.dumps({"error": str(e)}), 
-                          status=500, 
-                          headers={"Content-Type": "application/json"})
+        return json_response({"error": str(e)}, status=500)
 
 
 async def handle_get_settings(request, env):
@@ -870,9 +879,7 @@ async def handle_get_settings(request, env):
         user_id = url.searchParams.get('userId')
         
         if not user_id:
-            return Response.new(json.dumps({"error": "User ID required"}), 
-                              status=400, 
-                              headers={"Content-Type": "application/json"})
+            return json_response({"error": "User ID required"}, status=400)
         
         result = await env.DB.prepare("""
             SELECT email, notification_time, timezone, slack_webhook_url, 
@@ -882,22 +889,19 @@ async def handle_get_settings(request, env):
         """).bind(user_id).first()
         
         if not result:
-            return Response.new(json.dumps({}), 
-                              headers={"Content-Type": "application/json"})
+            return json_response({})
         
-        return Response.new(json.dumps({
+        return json_response({
             "email": result['email'] if result['email'] else '',
             "notificationTime": result['notification_time'],
             "timezone": result['timezone'],
             "slackWebhookUrl": result['slack_webhook_url'] if result['slack_webhook_url'] else '',
             "emailNotifications": result['email_notifications']
-        }), headers={"Content-Type": "application/json"})
+        })
         
     except Exception as e:
         print(f"Error getting settings: {e}")
-        return Response.new(json.dumps({"error": str(e)}), 
-                          status=500, 
-                          headers={"Content-Type": "application/json"})
+        return json_response({"error": str(e)}, status=500)
 
 
 async def handle_save_settings(request, env):
@@ -907,9 +911,7 @@ async def handle_save_settings(request, env):
         user_id = data.get('userId')
         
         if not user_id:
-            return Response.new(json.dumps({"error": "User ID required"}), 
-                              status=400, 
-                              headers={"Content-Type": "application/json"})
+            return json_response({"error": "User ID required"}, status=400)
         
         email = data.get('email', '')
         notification_time = data.get('notificationTime', '09:00')
@@ -931,38 +933,34 @@ async def handle_save_settings(request, env):
                 updated_at = CURRENT_TIMESTAMP
         """).bind(user_id, email, notification_time, timezone, slack_webhook_url, email_notifications).run()
         
-        return Response.new(json.dumps({"success": True}),
-                          headers={"Content-Type": "application/json"})
+        return json_response({"success": True})
         
     except Exception as e:
         print(f"Error saving settings: {e}")
-        return Response.new(json.dumps({"error": str(e)}), 
-                          status=500, 
-                          headers={"Content-Type": "application/json"})
+        return json_response({"error": str(e)}, status=500)
 
 
 async def handle_test_notification(request, env):
-    """Send test notification"""
+    """Send test notification via Slack and/or email"""
     try:
         url = URL.new(request.url)
         user_id = url.searchParams.get('userId')
         
         if not user_id:
-            return Response.new(json.dumps({"error": "User ID required"}), 
-                              status=400, 
-                              headers={"Content-Type": "application/json"})
+            return json_response({"error": "User ID required"}, status=400)
         
         # Get user settings
         result = await env.DB.prepare("""
-            SELECT slack_webhook_url, email 
+            SELECT slack_webhook_url, email, email_notifications 
             FROM users 
             WHERE user_id = ?
         """).bind(user_id).first()
         
         if not result:
-            return Response.new(json.dumps({"error": "User not found"}), 
-                              status=404, 
-                              headers={"Content-Type": "application/json"})
+            return json_response({"error": "User not found"}, status=404)
+        
+        notifications_sent = []
+        checkin_url = request.url.split('/api')[0]
         
         # Send Slack notification if webhook is configured
         if result['slack_webhook_url']:
@@ -985,7 +983,7 @@ async def handle_test_notification(request, env):
                                     "type": "plain_text",
                                     "text": "📝 Fill Check-in Form"
                                 },
-                                "url": request.url.split('/api')[0]
+                                "url": checkin_url
                             }
                         ]
                     }
@@ -998,17 +996,34 @@ async def handle_test_notification(request, env):
                     "headers": {"Content-Type": "application/json"},
                     "body": json.dumps(slack_message)
                 })
+                notifications_sent.append("slack")
             except Exception as e:
                 print(f"Error sending Slack notification: {e}")
         
-        return Response.new(json.dumps({"success": True, "message": "Test notification sent"}),
-                          headers={"Content-Type": "application/json"})
+        # Send email notification if email is configured
+        if result['email'] and result['email_notifications'] == 1:
+            try:
+                from scheduler import send_email_notification
+                success = await send_email_notification(
+                    result['email'],
+                    user_id,
+                    checkin_url,
+                    env
+                )
+                if success:
+                    notifications_sent.append("email")
+            except Exception as e:
+                print(f"Error sending email notification: {e}")
+        
+        return json_response({
+            "success": True,
+            "message": "Test notification sent",
+            "channels": notifications_sent
+        })
         
     except Exception as e:
         print(f"Error sending test notification: {e}")
-        return Response.new(json.dumps({"error": str(e)}), 
-                          status=500, 
-                          headers={"Content-Type": "application/json"})
+        return json_response({"error": str(e)}, status=500)
 
 
 # Main entry point for Cloudflare Worker
