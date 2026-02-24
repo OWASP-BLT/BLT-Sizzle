@@ -1,6 +1,6 @@
 name = "blt-sizzle"
-main = "src/index.py"
-compatibility_date = "2024-01-01"
+main = "workers/main.py"
+compatibility_date = "2024-04-03"
 compatibility_flags = ["python_workers"]
 
 # Scheduled notifications - runs every hour to check for users needing reminders
@@ -9,10 +9,21 @@ crons = ["0 * * * *"]
 
 # D1 Database binding
 [[d1_databases]]
-binding = "DB"
+binding = "sizzle_db"
 database_name = "sizzle-db"
-database_id = "272f7618-e0af-42be-80b5-4ca1e0090356"
+database_id = "cdf3005e-b7bc-4f56-8d71-ea8ca93f5f88"
+migrations_dir = "migrations"
 
+# Configure assets (static files)
+[assets]
+directory = "src"
+binding = "ASSETS"
+
+[vars]
+WORKER_HOST = "blt-sizzle.workers.dev"
+# EMAIL_API_KEY = ""
+# EMAIL_FROM = ""
+# EMAIL_PROVIDER = "sendgrid"
 
 # Use secrets for encryption key in production:
 # wrangler secret put ENCRYPTION_KEY
