@@ -1,7 +1,6 @@
 from js import Response, crypto, URL, fetch
 import json
 import base64
-import hashlib
 from datetime import date
 
 
@@ -28,10 +27,6 @@ async def encrypt_data(data, key):
     try:
         # Generate IV
         iv = crypto.getRandomValues(bytearray(12))
-        
-        # Convert key to bytes
-        key_bytes = key.encode('utf-8')
-        hashlib.sha256(key_bytes).digest()
         
         # TODO: This is a placeholder implementation using base64 encoding
         # For production, implement proper AES-GCM encryption using Web Crypto API
