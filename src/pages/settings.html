@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sizzle | Settings</title>
+    <!-- Favicon -->
+    <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        outfit: ['Outfit', 'sans-serif'],
+                    },
+                    colors: {
+                        primary: {
+                            DEFAULT: '#E10101',
+                            dark: '#BC0000',
+                        },
+                        secondary: '#64748b',
+                        gray: {
+                            200: '#E5E5E5',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Theme Initialization -->
+    <script>
+        if (localStorage.getItem('theme') === 'dark' ||
+            (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Outfit', sans-serif;
+        }
+    </style>
+</head>
+
+<body
+    class="bg-gray-50 dark:bg-slate-900 min-h-screen flex flex-col items-center text-slate-900 dark:text-white transition-colors duration-300">
+    <!-- Header -->
+    <header
+        class="fixed top-0 left-0 right-0 z-50 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border-b border-gray-200 dark:border-slate-700">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <nav class="flex items-center justify-between h-16">
+                <div class="flex items-center gap-2">
+                    <a href="/" class="flex items-center gap-2">
+                        <img src="/assets/images/owasp-blt-logo.svg" alt="OWASP BLT Logo" class="h-8 w-auto">
+                        <span class="font-bold text-xl tracking-tight hidden sm:block">SIZZLE</span>
+                    </a>
+                </div>
+
+                <div class="hidden md:flex items-center gap-8">
+                    <a href="/"
+                        class="text-slate-600 dark:text-slate-300 hover:text-primary transition-colors font-medium">Check-in</a>
+                    <a href="/leaderboard"
+                        class="text-slate-600 dark:text-slate-300 hover:text-primary transition-colors font-medium">Leaderboard</a>
+                    <a href="/time-logs"
+                        class="text-slate-600 dark:text-slate-300 hover:text-primary transition-colors font-medium">Time
+                        Logs</a>
+                    <a href="/settings" class="text-primary font-bold">Settings</a>
+                </div>
+
+                <div class="flex items-center gap-4">
+                    <button id="themeToggle"
+                        class="p-2 text-slate-500 hover:text-primary dark:text-slate-400 dark:hover:text-primary transition-colors">
+                        <svg id="sunIcon" class="hidden w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+                            <path fill-rule="evenodd"
+                                d="M10 18a.8.8 0 01-.8-.8V16.7a.8.8 0 111.6 0v.5a.8.8 0 01-.8.8zm8-8a.8.8 0 01-.8.8h-.5a.8.8 0 110-1.6h.5a.8.8 0 01.8.8zM10 2a.8.8 0 01.8.8v.5a.8.8 0 11-1.6 0V2.8a.8.8 0 01.8-.8zm-8 8a.8.8 0 01.8-.8h.5a.8.8 0 110 1.6H2.8a.8.8 0 01-.8-.8zm14.5 4.5a.8.8 0 010 1.1l-.4.4a.8.8 0 11-1.1-1.1l.4-.4a.8.8 0 011.1 0zm-11-11a.8.8 0 010 1.1l-.4.4a.8.8 0 01-1.1-1.1l.4-.4a.8.8 0 011.1 0z"
+                                clip-rule="evenodd" />
+                        </svg>
+                        <svg id="moonIcon" class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
+                        </svg>
+                    </button>
+                    <!-- Mobile Menu Button -->
+                    <button class="md:hidden p-2 text-slate-600 dark:text-slate-300">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 6h16M4 12h16m-7 6h7"></path>
+                        </svg>
+                    </button>
+                </div>
+            </nav>
+        </div>
+    </header>
+
+    <main class="pt-24 pb-12 px-4 w-full max-w-2xl">
+        <div
+            class="bg-white dark:bg-slate-800 rounded-3xl shadow-xl p-8 md:p-10 text-slate-800 dark:text-slate-100 animate-in fade-in duration-700 border border-gray-100 dark:border-slate-700">
+            <header class="mb-8">
+                <h1 class="text-4xl font-bold tracking-tight text-slate-900 dark:text-white mb-2">⚙️ Settings</h1>
+                <p class="text-slate-500 dark:text-slate-400 text-lg">Configure your notification preferences</p>
+            </header>
+
+            <div id="successMessage"
+                class="hidden bg-emerald-500 text-white p-4 rounded-xl mb-6 shadow-md border border-emerald-400 flex items-center gap-3">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                </svg>
+                Settings saved successfully!
+            </div>
+
+            <form id="settingsForm" class="space-y-6">
+                <div class="space-y-2">
+                    <label for="email" class="block text-sm font-bold text-slate-700 dark:text-slate-300">Email
+                        Address</label>
+                    <input type="email" id="email" name="email"
+                        class="w-full p-4 border-2 border-slate-100 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-200 focus:outline-none focus:border-primary transition-all duration-200 bg-slate-50 dark:bg-slate-900"
+                        placeholder="your@email.com">
+                </div>
+
+                <div class="space-y-2">
+                    <label for="notificationTime"
+                        class="block text-sm font-bold text-slate-700 dark:text-slate-300">Reminder Time (UTC)</label>
+                    <input type="time" id="notificationTime" name="notificationTime" value="09:00"
+                        class="w-full p-4 border-2 border-slate-100 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-200 focus:outline-none focus:border-primary transition-all duration-200 bg-slate-50 dark:bg-slate-900 cursor-pointer">
+                </div>
+
+                <div class="space-y-2">
+                    <label for="slackWebhook" class="block text-sm font-bold text-slate-700 dark:text-slate-300">Slack
+                        Webhook URL</label>
+                    <input type="text" id="slackWebhook" name="slackWebhook"
+                        class="w-full p-4 border-2 border-slate-100 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-200 focus:outline-none focus:border-primary transition-all duration-200 bg-slate-50 dark:bg-slate-900"
+                        placeholder="https://hooks.slack.com/services/...">
+                </div>
+
+                <div class="pt-4 space-y-4">
+                    <button type="submit" id="saveBtn"
+                        class="w-full bg-primary hover:bg-primary-dark text-white font-bold py-5 rounded-2xl shadow-lg transition-all duration-300 transform hover:-translate-y-1 active:translate-y-0 text-lg uppercase tracking-wider">
+                        Save Settings
+                    </button>
+                    <button type="button" onclick="testNotification()"
+                        class="w-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold py-4 rounded-2xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-all duration-200 uppercase tracking-widest text-xs flex items-center justify-center gap-2">
+                        <span class="text-lg">🔔</span> Send Test Notification
+                    </button>
+                </div>
+            </form>
+        </div>
+    </main>
+
+    <script>
+        // Theme Toggle Logic
+        const themeToggle = document.getElementById('themeToggle');
+        const sunIcon = document.getElementById('sunIcon');
+        const moonIcon = document.getElementById('moonIcon');
+
+        function updateThemeIcons() {
+            if (document.documentElement.classList.contains('dark')) {
+                sunIcon.classList.remove('hidden');
+                moonIcon.classList.add('hidden');
+            } else {
+                sunIcon.classList.add('hidden');
+                moonIcon.classList.remove('hidden');
+            }
+        }
+
+        updateThemeIcons();
+
+        themeToggle.addEventListener('click', () => {
+            const isDark = document.documentElement.classList.toggle('dark');
+            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+            updateThemeIcons();
+        });
+
+        let userId = localStorage.getItem('userId');
+
+        async function loadSettings() {
+            try {
+                const res = await fetch(`/api/settings?userId=${userId}`);
+                if (res.ok) {
+                    const s = await res.json();
+                    if (s.email) document.getElementById('email').value = s.email;
+                    if (s.notificationTime) document.getElementById('notificationTime').value = s.notificationTime;
+                    if (s.slackWebhookUrl) document.getElementById('slackWebhook').value = s.slackWebhookUrl;
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        loadSettings();
+
+        document.getElementById('settingsForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('saveBtn');
+            const successMessage = document.getElementById('successMessage');
+
+            btn.disabled = true;
+            btn.innerHTML = `<span class="inline-flex items-center gap-2"><svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Saving...</span>`;
+
+            const data = {
+                userId,
+                email: document.getElementById('email').value,
+                notificationTime: document.getElementById('notificationTime').value,
+                slackWebhookUrl: document.getElementById('slackWebhook').value
+            };
+
+            try {
+                const res = await fetch('/api/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                if (res.ok) {
+                    successMessage.classList.remove('hidden');
+                    setTimeout(() => successMessage.classList.add('hidden'), 4000);
+                }
+            } catch (e) {
+                console.error(e);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Save Settings';
+            }
+        });
+
+        async function testNotification() {
+            try {
+                const res = await fetch(`/api/notification/test?userId=${userId}`, { method: 'POST' });
+                if (res.ok) {
+                    alert('Test notification sent to your configured Slack webhook!');
+                } else {
+                    alert('Failed to send test notification. Check your webhook URL.');
+                }
+            } catch (e) {
+                alert('An error occurred. Please check the console.');
+            }
+        }
+    </script>
+</body>
+
+</html>

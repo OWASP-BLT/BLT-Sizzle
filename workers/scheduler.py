@@ -5,6 +5,10 @@ This script is triggered by Cloudflare Workers cron triggers.
 
 from js import fetch, Date
 import json
+import logging
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 
 async def send_slack_notification(webhook_url, user_email, checkin_url):
@@ -56,7 +60,7 @@ async def send_slack_notification(webhook_url, user_email, checkin_url):
         })
         return response.ok
     except Exception as e:
-        print(f"Error sending Slack notification: {e}")
+        logger.error("Error sending Slack notification: %s", e)
         return False
 
 
@@ -65,7 +69,7 @@ async def send_email_notification(email, user_name, checkin_url, env):
     
     # Check if email provider is configured
     if not hasattr(env, 'EMAIL_API_KEY') or not env.EMAIL_API_KEY:
-        print("Email notifications not configured")
+        logger.warning("Email notifications not configured: EMAIL_API_KEY missing")
         return False
     
     email_provider = getattr(env, 'EMAIL_PROVIDER', 'sendgrid')
@@ -184,7 +188,7 @@ async def send_email_notification(email, user_name, checkin_url, env):
     elif email_provider == 'mailgun':
         return await send_via_mailgun(email, html_content, text_content, env)
     else:
-        print(f"Unsupported email provider: {email_provider}")
+        logger.warning("Unsupported email provider: %s", email_provider)
         return False
 
 
@@ -226,7 +230,7 @@ async def send_via_sendgrid(to_email, html_content, text_content, env):
         })
         return response.ok
     except Exception as e:
-        print(f"Error sending via SendGrid: {e}")
+        logger.error("Error sending via SendGrid: %s", e)
         return False
 
 
@@ -262,7 +266,65 @@ async def send_via_mailgun(to_email, html_content, text_content, env):
         })
         return response.ok
     except Exception as e:
-        print(f"Error sending via Mailgun: {e}")
+        logger.error("Error sending via Mailgun: %s", e)
+        return False
+
+
+async def send_daily_summary(webhook_url, user_id, env):
+    """Send daily time log summary to Slack"""
+    try:
+        # Get logs from last 24 hours
+        yesterday = (Date.now() - 86400000) # 24h in ms
+        yesterday_iso = Date.new(yesterday).toISOString().split('T')[0]
+        
+        result_proxy = await env.sizzle_db.prepare("""
+            SELECT start_time, end_time, duration_seconds, github_issue_url 
+            FROM timelogs 
+            WHERE user_id = ? AND date(start_time) >= ? AND end_time IS NOT NULL
+        """).bind(user_id, yesterday_iso).all()
+        
+        result = result_proxy.to_py() if hasattr(result_proxy, 'to_py') else result_proxy
+        results = result.get('results', []) if isinstance(result, dict) else []
+        
+        if not results:
+            return False
+            
+        total_seconds = sum(log['duration_seconds'] for log in results)
+        hours, remainder = divmod(total_seconds, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        total_str = f"{hours}h {minutes}m"
+        
+        message = {
+            "text": "📊 Daily Time Log Summary",
+            "blocks": [
+                {
+                    "type": "header",
+                    "text": {"type": "plain_text", "text": "📊 Daily Time Log Summary"}
+                },
+                {
+                    "type": "section",
+                    "text": {"type": "mrkdwn", "text": f"*Total tracked time:* {total_str}"}
+                }
+            ]
+        }
+        
+        for log in results:
+            st = log['start_time'].split('T')[1][:5]
+            et = log['end_time'].split('T')[1][:5]
+            issue = f" - <{log['github_issue_url']}|Issue>" if log['github_issue_url'] else ""
+            message["blocks"].append({
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": f"• {st} - {et} ({int(log['duration_seconds']/60)}m){issue}"}
+            })
+            
+        await fetch(webhook_url, {
+            "method": "POST",
+            "headers": {"Content-Type": "application/json"},
+            "body": json.dumps(message)
+        })
+        return True
+    except Exception as e:
+        logger.error("Error sending daily summary: %s", e)
         return False
 
 
@@ -273,71 +335,54 @@ async def handle_scheduled(event, env):
     """
     try:
         # Get current time in UTC
-        current_time = Date.new().toISOString()
-        current_hour = int(current_time.split('T')[1].split(':')[0])
-        current_minute = int(current_time.split(':')[1])
+        iso_str = Date.new().toISOString()
+        current_hour = int(iso_str.split('T')[1].split(':')[0])
+        current_minute = int(iso_str.split(':')[1])
+        logger.info("Running scheduled task at %02d:%02d UTC", current_hour, current_minute)
         
-        print(f"Running scheduled task at {current_hour}:{current_minute:02d} UTC")
+
         
         # Query users who need notifications at this time
-        # We'll check for users with notification_time within the current hour
-        results = await env.DB.prepare("""
+        result_proxy = await env.sizzle_db.prepare("""
             SELECT user_id, email, slack_webhook_url, notification_time, 
                    timezone, email_notifications, notification_enabled
             FROM users
             WHERE notification_enabled = 1
         """).all()
         
-        if not results or not results['results']:
-            print("No users with notifications enabled")
+        result = result_proxy.to_py() if hasattr(result_proxy, 'to_py') else result_proxy
+        users = result.get('results', []) if isinstance(result, dict) else []
+        
+        if not users:
+            logger.info("No users with notifications enabled")
             return
         
-        notifications_sent = 0
         checkin_url = f"https://{env.WORKER_HOST}" if hasattr(env, 'WORKER_HOST') else "https://your-worker.workers.dev"
         
-        for user in results['results']:
-            # Parse notification time
+        for user in users:
             try:
                 notif_hour, notif_minute = map(int, user['notification_time'].split(':'))
                 
-                # Note: This is a simplified timezone handling
-                # In production, use a proper timezone library to convert user's timezone to UTC
-                # For now, assuming notification_time is already in UTC or within acceptable window
-                # TODO: Add proper timezone conversion using pytz or similar library
-                time_diff = abs((current_hour * 60 + current_minute) - (notif_hour * 60 + notif_minute))
-                
-                if time_diff <= 30:  # Within 30 minutes window
-                    # Send Slack notification
+                # Check if we are within the notification window
+                if current_hour == notif_hour and abs(current_minute - notif_minute) < 30:
+                    # 1. Send Check-in Reminder
                     if user['slack_webhook_url']:
-                        success = await send_slack_notification(
-                            user['slack_webhook_url'],
-                            user['email'] or 'User',
-                            checkin_url
-                        )
-                        if success:
-                            notifications_sent += 1
-                            print(f"Sent Slack notification to user {user['user_id']}")
+                        await send_slack_notification(user['slack_webhook_url'], user['user_id'], checkin_url)
                     
-                    # Send email notification
                     if user['email'] and user['email_notifications'] == 1:
-                        success = await send_email_notification(
-                            user['email'],
-                            user['user_id'],
-                            checkin_url,
-                            env
-                        )
-                        if success:
-                            notifications_sent += 1
-                            print(f"Sent email notification to {user['email']}")
+                        await send_email_notification(user['email'], user['user_id'], checkin_url, env)
+                        
+                    # 2. Send Daily Time Log Summary
+                    if user['slack_webhook_url']:
+                        await send_daily_summary(user['slack_webhook_url'], user['user_id'], env)
                             
             except Exception as e:
-                print(f"Error processing user {user['user_id']}: {e}")
+                logger.error("Error processing user %s: %s", user['user_id'], e)
                 continue
         
-        print(f"Scheduled task complete. Sent {notifications_sent} notifications.")
-        
+        logger.info("Scheduled task complete")
     except Exception as e:
-        print(f"Error in scheduled handler: {e}")
+        logger.error("Error in scheduled handler: %s", e, exc_info=True)
 
 
 async def on_scheduled(event, env):
