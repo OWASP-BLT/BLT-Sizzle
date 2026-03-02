@@ -31,3 +31,17 @@ WORKER_HOST = "blt-sizzle.workers.dev"
 # For development only, you can uncomment and set a key here:
 # [vars]
 # ENCRYPTION_KEY = "development-key-only-not-for-production"
+[observability]
+enabled = false
+head_sampling_rate = 1
+
+[observability.logs]
+enabled = true
+head_sampling_rate = 1
+persist = true
+invocation_logs = true
+
+[observability.traces]
+enabled = false
+persist = true
+head_sampling_rate = 1
