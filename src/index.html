@@ -88,6 +88,10 @@
                 </div>
 
                 <div class="flex items-center gap-4">
+                    <!-- Connected account badge (shown when authenticated) -->
+                    <div id="authBadge" class="hidden items-center gap-2">
+                        <span id="authName" class="text-sm font-medium text-slate-600 dark:text-slate-300 hidden md:block"></span>
+                    </div>
                     <button id="themeToggle"
                         class="p-2 text-slate-500 hover:text-primary dark:text-slate-400 dark:hover:text-primary transition-colors">
                         <svg id="sunIcon" class="hidden w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
@@ -113,6 +117,50 @@
     </header>
 
     <main class="pt-24 pb-12 px-4 w-full max-w-2xl">
+        <!-- OAuth connection banner -->
+        <div id="oauthConnectedBanner"
+            class="hidden bg-emerald-500 text-white p-4 rounded-xl mb-4 shadow-md flex items-center gap-3">
+            <svg class="w-6 h-6 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+            </svg>
+            <span id="oauthConnectedText">Account connected successfully!</span>
+        </div>
+        <div id="oauthErrorBanner"
+            class="hidden bg-rose-500 text-white p-4 rounded-xl mb-4 shadow-md flex items-center gap-3">
+            <svg class="w-6 h-6 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+            <span id="oauthErrorText">Authentication failed. Please try again.</span>
+        </div>
+
+        <!-- Connect accounts card (shown when no providers connected) -->
+        <div id="connectAccountsCard"
+            class="hidden bg-white dark:bg-slate-800 rounded-3xl shadow-xl p-6 md:p-8 mb-4 border border-gray-100 dark:border-slate-700">
+            <h2 class="text-lg font-bold text-slate-900 dark:text-white mb-1">🔗 Connect your accounts</h2>
+            <p class="text-slate-500 dark:text-slate-400 text-sm mb-4">Link GitHub or Slack to attach your daily
+                status reports to your identity and enable smarter notifications.</p>
+            <div class="flex flex-col sm:flex-row gap-3">
+                <button onclick="loginWithGitHub()"
+                    class="flex items-center justify-center gap-2 px-5 py-3 bg-slate-900 dark:bg-slate-700 text-white rounded-xl font-semibold text-sm hover:bg-slate-700 dark:hover:bg-slate-600 transition-colors">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                        <path fill-rule="evenodd" clip-rule="evenodd"
+                            d="M12 2C6.477 2 2 6.477 2 12c0 4.418 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.009-.868-.014-1.703-2.782.604-3.369-1.342-3.369-1.342-.454-1.154-1.11-1.462-1.11-1.462-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0112 6.836c.85.004 1.705.114 2.504.336 1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C19.138 20.163 22 16.418 22 12c0-5.523-4.477-10-10-10z" />
+                    </svg>
+                    Login with GitHub
+                </button>
+                <button onclick="loginWithSlack()"
+                    class="flex items-center justify-center gap-2 px-5 py-3 bg-[#4A154B] text-white rounded-xl font-semibold text-sm hover:bg-[#3e1040] transition-colors">
+                    <svg class="w-5 h-5" viewBox="0 0 54 54" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M19.712 33.706a4.74 4.74 0 01-4.74 4.74 4.74 4.74 0 01-4.74-4.74 4.74 4.74 0 014.74-4.74h4.74v4.74zM22.082 33.706a4.74 4.74 0 014.74-4.74 4.74 4.74 0 014.74 4.74v11.852a4.74 4.74 0 01-4.74 4.74 4.74 4.74 0 01-4.74-4.74V33.706z" fill="#E01E5A"/>
+                        <path d="M26.822 19.712a4.74 4.74 0 01-4.74-4.74 4.74 4.74 0 014.74-4.74 4.74 4.74 0 014.74 4.74v4.74h-4.74zM26.822 22.082a4.74 4.74 0 014.74 4.74 4.74 4.74 0 01-4.74 4.74H14.97a4.74 4.74 0 01-4.74-4.74 4.74 4.74 0 014.74-4.74h11.852z" fill="#36C5F0"/>
+                        <path d="M40.816 26.822a4.74 4.74 0 014.74 4.74 4.74 4.74 0 01-4.74 4.74 4.74 4.74 0 01-4.74-4.74v-4.74h4.74zM38.446 26.822a4.74 4.74 0 01-4.74-4.74 4.74 4.74 0 014.74-4.74h11.852a4.74 4.74 0 014.74 4.74 4.74 4.74 0 01-4.74 4.74H38.446z" fill="#2EB67D"/>
+                        <path d="M33.706 40.816a4.74 4.74 0 01-4.74 4.74 4.74 4.74 0 01-4.74-4.74v-4.74h4.74a4.74 4.74 0 014.74 4.74zM33.706 38.446a4.74 4.74 0 014.74-4.74 4.74 4.74 0 014.74 4.74v11.852a4.74 4.74 0 01-4.74 4.74 4.74 4.74 0 01-4.74-4.74V38.446z" fill="#ECB22E"/>
+                    </svg>
+                    Login with Slack
+                </button>
+            </div>
+        </div>
+
         <div
             class="bg-white dark:bg-slate-800 rounded-3xl shadow-xl p-8 md:p-10 text-slate-800 dark:text-slate-100 animate-in fade-in duration-700 border border-gray-100 dark:border-slate-700">
             <header class="mb-8">
@@ -248,6 +296,102 @@
         if (!userId) {
             userId = 'user_' + Math.random().toString(36).substr(2, 9);
             localStorage.setItem('userId', userId);
+        }
+
+        // Handle OAuth redirect params
+        (function handleOAuthRedirect() {
+            const params = new URLSearchParams(window.location.search);
+            const connected = params.get('connected');
+            const returnedUserId = params.get('userId');
+            const authError = params.get('auth_error');
+
+            if (returnedUserId) {
+                userId = returnedUserId;
+                localStorage.setItem('userId', userId);
+            }
+
+            if (connected) {
+                const labels = { github: 'GitHub', slack: 'Slack' };
+                const label = labels[connected] || connected;
+                document.getElementById('oauthConnectedText').textContent =
+                    `✅ ${label} account connected successfully! Your daily status reports are now linked.`;
+                const banner = document.getElementById('oauthConnectedBanner');
+                banner.classList.remove('hidden');
+                banner.classList.add('flex');
+                setTimeout(() => { banner.classList.add('hidden'); banner.classList.remove('flex'); }, 6000);
+            }
+
+            if (authError) {
+                const errorMessages = {
+                    github_denied: 'GitHub login was cancelled.',
+                    github_invalid: 'Invalid GitHub response. Please try again.',
+                    github_state_invalid: 'Security check failed. Please try again.',
+                    github_token: 'Failed to obtain GitHub token. Please try again.',
+                    github_profile: 'Failed to fetch GitHub profile. Please try again.',
+                    github_error: 'GitHub login failed. Please try again.',
+                    slack_denied: 'Slack login was cancelled.',
+                    slack_invalid: 'Invalid Slack response. Please try again.',
+                    slack_state_invalid: 'Security check failed. Please try again.',
+                    slack_token: 'Failed to obtain Slack token. Please try again.',
+                    slack_error: 'Slack login failed. Please try again.',
+                };
+                document.getElementById('oauthErrorText').textContent =
+                    errorMessages[authError] || 'Authentication failed. Please try again.';
+                const errBanner = document.getElementById('oauthErrorBanner');
+                errBanner.classList.remove('hidden');
+                errBanner.classList.add('flex');
+                setTimeout(() => { errBanner.classList.add('hidden'); errBanner.classList.remove('flex'); }, 6000);
+            }
+
+            // Clean up URL
+            if (connected || authError || returnedUserId) {
+                const cleanUrl = window.location.pathname;
+                window.history.replaceState({}, document.title, cleanUrl);
+            }
+        })();
+
+        // Load auth status and update UI
+        async function loadAuthStatus() {
+            try {
+                const res = await fetch(`/api/auth/status?userId=${userId}`);
+                if (!res.ok) return;
+                const status = await res.json();
+
+                const badge = document.getElementById('authBadge');
+                const authName = document.getElementById('authName');
+                const connectCard = document.getElementById('connectAccountsCard');
+
+                const isConnected = status.github.connected || status.slack.connected;
+
+                if (isConnected) {
+                    let name = status.displayName;
+                    if (!name) {
+                        name = status.github.connected ? status.github.username :
+                               (status.slack.connected ? status.slack.userId : '');
+                    }
+                    if (name) {
+                        authName.textContent = name;
+                        authName.classList.remove('hidden');
+                        badge.classList.remove('hidden');
+                        badge.classList.add('flex');
+                    }
+                    connectCard.classList.add('hidden');
+                } else {
+                    connectCard.classList.remove('hidden');
+                }
+            } catch (e) {
+                console.error('Error loading auth status:', e);
+            }
+        }
+
+        loadAuthStatus();
+
+        function loginWithGitHub() {
+            window.location.href = `/api/auth/github?userId=${encodeURIComponent(userId)}`;
+        }
+
+        function loginWithSlack() {
+            window.location.href = `/api/auth/slack?userId=${encodeURIComponent(userId)}`;
         }
 
         const emojiOptions = document.querySelectorAll('.emoji-option');

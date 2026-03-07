@@ -25,6 +25,16 @@ WORKER_HOST = "blt-sizzle.workers.dev"
 # EMAIL_FROM = ""
 # EMAIL_PROVIDER = "sendgrid"
 
+# GitHub OAuth – set via `wrangler secret put GITHUB_CLIENT_ID` and
+#                       `wrangler secret put GITHUB_CLIENT_SECRET`
+# GITHUB_CLIENT_ID = ""
+# GITHUB_CLIENT_SECRET = ""
+
+# Slack OAuth – set via `wrangler secret put SLACK_CLIENT_ID` and
+#                      `wrangler secret put SLACK_CLIENT_SECRET`
+# SLACK_CLIENT_ID = ""
+# SLACK_CLIENT_SECRET = ""
+
 # Use secrets for encryption key in production:
 # wrangler secret put ENCRYPTION_KEY
 # 

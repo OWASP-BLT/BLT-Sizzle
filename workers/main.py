@@ -114,7 +114,26 @@ async def handle_request(request, env):
             
         elif api_path == "/api/debug/db" and method == "GET":
             return await handle_debug_db(request, env)
-        
+
+        # OAuth routes
+        elif api_path == "/api/auth/github" and method == "GET":
+            return await handle_auth_github(request, env)
+
+        elif api_path == "/api/auth/github/callback" and method == "GET":
+            return await handle_auth_github_callback(request, env)
+
+        elif api_path == "/api/auth/slack" and method == "GET":
+            return await handle_auth_slack(request, env)
+
+        elif api_path == "/api/auth/slack/callback" and method == "GET":
+            return await handle_auth_slack_callback(request, env)
+
+        elif api_path == "/api/auth/status" and method == "GET":
+            return await handle_auth_status(request, env)
+
+        elif api_path == "/api/auth/disconnect" and method == "POST":
+            return await handle_auth_disconnect(request, env)
+
         else:
             return Response.new(json.dumps({"error": "API route not found"}), 
                               {"status": 404, "headers": {"Content-Type": "application/json"}})
@@ -209,7 +228,50 @@ async def init_database(env):
         await env.sizzle_db.prepare("""
             CREATE INDEX IF NOT EXISTS idx_users_user_id ON users(user_id)
         """).run()
-        
+
+        # OAuth: add new columns if they don't exist yet (idempotent ALTER TABLE)
+        # Using a whitelist of known safe column definitions to avoid any SQL injection risk.
+        _OAUTH_COLUMNS = {
+            "github_id": "TEXT",
+            "github_username": "TEXT",
+            "github_access_token": "TEXT",
+            "slack_access_token": "TEXT",
+            "slack_team_id": "TEXT",
+        }
+        for col_name, col_type in _OAUTH_COLUMNS.items():
+            # Both col_name and col_type are hardcoded constants above — safe to interpolate.
+            try:
+                await env.sizzle_db.prepare(
+                    f"ALTER TABLE users ADD COLUMN {col_name} {col_type}"
+                ).run()
+            except Exception:
+                pass  # Column already exists
+
+        # OAuth indexes
+        try:
+            await env.sizzle_db.prepare(
+                "CREATE INDEX IF NOT EXISTS idx_users_github_id ON users(github_id)"
+            ).run()
+        except Exception:
+            pass
+
+        try:
+            await env.sizzle_db.prepare(
+                "CREATE INDEX IF NOT EXISTS idx_users_slack_user_id ON users(slack_user_id)"
+            ).run()
+        except Exception:
+            pass
+
+        # Temporary CSRF state table for OAuth flows
+        await env.sizzle_db.prepare("""
+            CREATE TABLE IF NOT EXISTS oauth_states (
+                state TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                provider TEXT NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        """).run()
+
     except Exception as e:
         logger.error("Database initialization error: %s", e, exc_info=True)
 
@@ -690,6 +752,466 @@ async def handle_debug_db(request, env):
     except Exception as e:
         return Response.new(json.dumps({"error": str(e)}), 
                           {"status": 500, "headers": {"Content-Type": "application/json"}})
+
+
+# ---------------------------------------------------------------------------
+# OAuth helpers
+# ---------------------------------------------------------------------------
+
+def _generate_state():
+    """Generate a cryptographically random state token."""
+    random_bytes = crypto.getRandomValues(bytearray(32))
+    return base64.urlsafe_b64encode(bytes(random_bytes)).decode('utf-8').rstrip('=')
+
+
+def _get_worker_base_url(env, request):
+    """Return the base URL of this worker (e.g. https://blt-sizzle.workers.dev)."""
+    worker_host = getattr(env, 'WORKER_HOST', None)
+    if worker_host:
+        return f"https://{worker_host}"
+    # Fall back to the request's own origin
+    req_url = URL.new(request.url)
+    return req_url.origin
+
+
+async def _store_oauth_state(env, state, user_id, provider):
+    """Persist an OAuth state token so we can validate it on callback."""
+    await env.sizzle_db.prepare("""
+        INSERT INTO oauth_states (state, user_id, provider) VALUES (?, ?, ?)
+    """).bind(state, user_id, provider).run()
+    # Prune states older than 15 minutes to keep the table small
+    try:
+        await env.sizzle_db.prepare("""
+            DELETE FROM oauth_states
+            WHERE created_at < datetime('now', '-15 minutes')
+        """).run()
+    except Exception:
+        pass
+
+
+async def _validate_oauth_state(env, state, provider):
+    """Validate and consume a state token.  Returns user_id or None."""
+    if not state:
+        return None
+    row_proxy = await env.sizzle_db.prepare("""
+        SELECT user_id FROM oauth_states
+        WHERE state = ? AND provider = ?
+          AND created_at >= datetime('now', '-15 minutes')
+        LIMIT 1
+    """).bind(state, provider).first()
+    if not row_proxy:
+        return None
+    row = row_proxy.to_py()
+    # Consume the state (one-time use)
+    await env.sizzle_db.prepare(
+        "DELETE FROM oauth_states WHERE state = ?"
+    ).bind(state).run()
+    return row['user_id']
+
+
+# ---------------------------------------------------------------------------
+# GitHub OAuth
+# ---------------------------------------------------------------------------
+
+async def handle_auth_github(request, env):
+    """Initiate GitHub OAuth flow.
+
+    Query params:
+      userId (required) – the caller's current user_id so we can link the
+                          GitHub account to their existing data after the flow.
+    """
+    try:
+        url = URL.new(request.url)
+        user_id = url.searchParams.get('userId')
+        if not user_id:
+            return Response.new(json.dumps({"error": "userId is required"}),
+                                {"status": 400, "headers": {"Content-Type": "application/json"}})
+
+        client_id = getattr(env, 'GITHUB_CLIENT_ID', None)
+        if not client_id:
+            return Response.new(json.dumps({"error": "GitHub OAuth is not configured on this server"}),
+                                {"status": 503, "headers": {"Content-Type": "application/json"}})
+
+        state = _generate_state()
+        await _store_oauth_state(env, state, user_id, 'github')
+
+        base_url = _get_worker_base_url(env, request)
+        redirect_uri = f"{base_url}/api/auth/github/callback"
+
+        github_url = (
+            f"https://github.com/login/oauth/authorize"
+            f"?client_id={client_id}"
+            f"&redirect_uri={redirect_uri}"
+            f"&scope=read:user,user:email"
+            f"&state={state}"
+        )
+
+        return Response.new("", {
+            "status": 302,
+            "headers": {"Location": github_url}
+        })
+    except Exception as e:
+        logger.error("Error initiating GitHub OAuth: %s", e, exc_info=True)
+        return Response.new(json.dumps({"error": str(e)}),
+                            {"status": 500, "headers": {"Content-Type": "application/json"}})
+
+
+async def handle_auth_github_callback(request, env):
+    """Handle GitHub OAuth callback."""
+    try:
+        url = URL.new(request.url)
+        code = url.searchParams.get('code')
+        state = url.searchParams.get('state')
+        error = url.searchParams.get('error')
+
+        base_url = _get_worker_base_url(env, request)
+
+        if error:
+            return Response.new("", {
+                "status": 302,
+                "headers": {"Location": f"{base_url}/?auth_error=github_denied"}
+            })
+
+        if not code or not state:
+            return Response.new("", {
+                "status": 302,
+                "headers": {"Location": f"{base_url}/?auth_error=github_invalid"}
+            })
+
+        user_id = await _validate_oauth_state(env, state, 'github')
+        if not user_id:
+            return Response.new("", {
+                "status": 302,
+                "headers": {"Location": f"{base_url}/?auth_error=github_state_invalid"}
+            })
+
+        client_id = getattr(env, 'GITHUB_CLIENT_ID', '')
+        client_secret = getattr(env, 'GITHUB_CLIENT_SECRET', '')
+        redirect_uri = f"{base_url}/api/auth/github/callback"
+
+        # Exchange code for access token
+        token_resp = await fetch("https://github.com/login/oauth/access_token", {
+            "method": "POST",
+            "headers": {
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+            },
+            "body": json.dumps({
+                "client_id": client_id,
+                "client_secret": client_secret,
+                "code": code,
+                "redirect_uri": redirect_uri,
+            }),
+        })
+
+        if not token_resp.ok:
+            logger.error("GitHub token exchange failed: status %s", token_resp.status)
+            return Response.new("", {
+                "status": 302,
+                "headers": {"Location": f"{base_url}/?auth_error=github_token"}
+            })
+
+        token_data_raw = await token_resp.json()
+        token_data = token_data_raw.to_py() if hasattr(token_data_raw, 'to_py') else token_data_raw
+
+        access_token = token_data.get('access_token')
+        if not access_token:
+            return Response.new("", {
+                "status": 302,
+                "headers": {"Location": f"{base_url}/?auth_error=github_token"}
+            })
+
+        # Fetch GitHub user profile
+        user_resp = await fetch("https://api.github.com/user", {
+            "headers": {
+                "Authorization": f"Bearer {access_token}",
+                "Accept": "application/vnd.github+json",
+                "User-Agent": "BLT-Sizzle/1.0",
+            }
+        })
+
+        if not user_resp.ok:
+            return Response.new("", {
+                "status": 302,
+                "headers": {"Location": f"{base_url}/?auth_error=github_profile"}
+            })
+
+        gh_user_raw = await user_resp.json()
+        gh_user = gh_user_raw.to_py() if hasattr(gh_user_raw, 'to_py') else gh_user_raw
+
+        github_id = str(gh_user.get('id', ''))
+        github_username = gh_user.get('login', '')
+        display_name = gh_user.get('name') or github_username
+        email = gh_user.get('email') or ''
+
+        # Ensure the user row exists, then link GitHub credentials
+        await env.sizzle_db.prepare(
+            "INSERT OR IGNORE INTO users (user_id) VALUES (?)"
+        ).bind(user_id).run()
+
+        await env.sizzle_db.prepare("""
+            UPDATE users
+            SET github_id = ?,
+                github_username = ?,
+                github_access_token = ?,
+                display_name = COALESCE(NULLIF(display_name, ''), ?),
+                email = COALESCE(NULLIF(email, ''), ?),
+                updated_at = CURRENT_TIMESTAMP
+            WHERE user_id = ?
+        """).bind(github_id, github_username, access_token, display_name, email, user_id).run()
+
+        return Response.new("", {
+            "status": 302,
+            "headers": {"Location": f"{base_url}/?connected=github&userId={user_id}"}
+        })
+
+    except Exception as e:
+        logger.error("Error in GitHub OAuth callback: %s", e, exc_info=True)
+        base_url = _get_worker_base_url(env, request)
+        return Response.new("", {
+            "status": 302,
+            "headers": {"Location": f"{base_url}/?auth_error=github_error"}
+        })
+
+
+# ---------------------------------------------------------------------------
+# Slack OAuth
+# ---------------------------------------------------------------------------
+
+async def handle_auth_slack(request, env):
+    """Initiate Slack OAuth flow.
+
+    Query params:
+      userId (required) – the caller's current user_id.
+    """
+    try:
+        url = URL.new(request.url)
+        user_id = url.searchParams.get('userId')
+        if not user_id:
+            return Response.new(json.dumps({"error": "userId is required"}),
+                                {"status": 400, "headers": {"Content-Type": "application/json"}})
+
+        client_id = getattr(env, 'SLACK_CLIENT_ID', None)
+        if not client_id:
+            return Response.new(json.dumps({"error": "Slack OAuth is not configured on this server"}),
+                                {"status": 503, "headers": {"Content-Type": "application/json"}})
+
+        state = _generate_state()
+        await _store_oauth_state(env, state, user_id, 'slack')
+
+        base_url = _get_worker_base_url(env, request)
+        redirect_uri = f"{base_url}/api/auth/slack/callback"
+
+        slack_url = (
+            f"https://slack.com/oauth/v2/authorize"
+            f"?client_id={client_id}"
+            f"&user_scope=identity.basic,identity.email,identity.team"
+            f"&redirect_uri={redirect_uri}"
+            f"&state={state}"
+        )
+
+        return Response.new("", {
+            "status": 302,
+            "headers": {"Location": slack_url}
+        })
+    except Exception as e:
+        logger.error("Error initiating Slack OAuth: %s", e, exc_info=True)
+        return Response.new(json.dumps({"error": str(e)}),
+                            {"status": 500, "headers": {"Content-Type": "application/json"}})
+
+
+async def handle_auth_slack_callback(request, env):
+    """Handle Slack OAuth callback."""
+    try:
+        url = URL.new(request.url)
+        code = url.searchParams.get('code')
+        state = url.searchParams.get('state')
+        error = url.searchParams.get('error')
+
+        base_url = _get_worker_base_url(env, request)
+
+        if error:
+            return Response.new("", {
+                "status": 302,
+                "headers": {"Location": f"{base_url}/?auth_error=slack_denied"}
+            })
+
+        if not code or not state:
+            return Response.new("", {
+                "status": 302,
+                "headers": {"Location": f"{base_url}/?auth_error=slack_invalid"}
+            })
+
+        user_id = await _validate_oauth_state(env, state, 'slack')
+        if not user_id:
+            return Response.new("", {
+                "status": 302,
+                "headers": {"Location": f"{base_url}/?auth_error=slack_state_invalid"}
+            })
+
+        client_id = getattr(env, 'SLACK_CLIENT_ID', '')
+        client_secret = getattr(env, 'SLACK_CLIENT_SECRET', '')
+        redirect_uri = f"{base_url}/api/auth/slack/callback"
+
+        # Exchange code for access token via oauth.v2.access
+        token_resp = await fetch(
+            f"https://slack.com/api/oauth.v2.access"
+            f"?client_id={client_id}"
+            f"&client_secret={client_secret}"
+            f"&code={code}"
+            f"&redirect_uri={redirect_uri}",
+            {"method": "GET"}
+        )
+
+        if not token_resp.ok:
+            logger.error("Slack token exchange failed: status %s", token_resp.status)
+            return Response.new("", {
+                "status": 302,
+                "headers": {"Location": f"{base_url}/?auth_error=slack_token"}
+            })
+
+        token_data_raw = await token_resp.json()
+        token_data = token_data_raw.to_py() if hasattr(token_data_raw, 'to_py') else token_data_raw
+
+        if not token_data.get('ok'):
+            slack_err = token_data.get('error', 'unknown')
+            logger.error("Slack OAuth error: %s", slack_err)
+            return Response.new("", {
+                "status": 302,
+                "headers": {"Location": f"{base_url}/?auth_error=slack_token"}
+            })
+
+        # User-level token lives under authed_user
+        authed_user = token_data.get('authed_user', {})
+        user_access_token = authed_user.get('access_token', '')
+        slack_user_id = authed_user.get('id', '')
+        team = token_data.get('team', {})
+        slack_team_id = team.get('id', '') if isinstance(team, dict) else ''
+
+        # Fetch user identity
+        identity_resp = await fetch("https://slack.com/api/users.identity", {
+            "headers": {"Authorization": f"Bearer {user_access_token}"}
+        })
+
+        display_name = ''
+        email = ''
+        if identity_resp.ok:
+            identity_raw = await identity_resp.json()
+            identity = identity_raw.to_py() if hasattr(identity_raw, 'to_py') else identity_raw
+            if identity.get('ok'):
+                slack_profile = identity.get('user', {})
+                display_name = slack_profile.get('name', '')
+                email = slack_profile.get('email', '')
+
+        # Ensure user row exists, then link Slack credentials
+        await env.sizzle_db.prepare(
+            "INSERT OR IGNORE INTO users (user_id) VALUES (?)"
+        ).bind(user_id).run()
+
+        await env.sizzle_db.prepare("""
+            UPDATE users
+            SET slack_user_id = ?,
+                slack_access_token = ?,
+                slack_team_id = ?,
+                display_name = COALESCE(NULLIF(display_name, ''), ?),
+                email = COALESCE(NULLIF(email, ''), ?),
+                updated_at = CURRENT_TIMESTAMP
+            WHERE user_id = ?
+        """).bind(slack_user_id, user_access_token, slack_team_id, display_name, email, user_id).run()
+
+        return Response.new("", {
+            "status": 302,
+            "headers": {"Location": f"{base_url}/?connected=slack&userId={user_id}"}
+        })
+
+    except Exception as e:
+        logger.error("Error in Slack OAuth callback: %s", e, exc_info=True)
+        base_url = _get_worker_base_url(env, request)
+        return Response.new("", {
+            "status": 302,
+            "headers": {"Location": f"{base_url}/?auth_error=slack_error"}
+        })
+
+
+# ---------------------------------------------------------------------------
+# Auth status & disconnect
+# ---------------------------------------------------------------------------
+
+async def handle_auth_status(request, env):
+    """Return which OAuth providers are connected for a user."""
+    try:
+        url = URL.new(request.url)
+        user_id = url.searchParams.get('userId')
+        if not user_id:
+            return Response.new(json.dumps({"error": "userId is required"}),
+                                {"status": 400, "headers": {"Content-Type": "application/json"}})
+
+        row_proxy = await env.sizzle_db.prepare("""
+            SELECT github_id, github_username, slack_user_id, slack_team_id, display_name, email
+            FROM users WHERE user_id = ?
+        """).bind(user_id).first()
+
+        if not row_proxy:
+            return Response.new(json.dumps({
+                "github": {"connected": False},
+                "slack": {"connected": False}
+            }), {"headers": {"Content-Type": "application/json"}})
+
+        row = row_proxy.to_py()
+
+        return Response.new(json.dumps({
+            "github": {
+                "connected": bool(row.get('github_id')),
+                "username": row.get('github_username') or '',
+            },
+            "slack": {
+                "connected": bool(row.get('slack_user_id')),
+                "userId": row.get('slack_user_id') or '',
+                "teamId": row.get('slack_team_id') or '',
+            },
+            "displayName": row.get('display_name') or '',
+            "email": row.get('email') or '',
+        }), {"headers": {"Content-Type": "application/json"}})
+
+    except Exception as e:
+        logger.error("Error getting auth status: %s", e, exc_info=True)
+        return Response.new(json.dumps({"error": str(e)}),
+                            {"status": 500, "headers": {"Content-Type": "application/json"}})
+
+
+async def handle_auth_disconnect(request, env):
+    """Disconnect a provider (github or slack) from a user account."""
+    try:
+        data = (await request.json()).to_py()
+        user_id = data.get('userId')
+        provider = data.get('provider')
+
+        if not user_id or provider not in ('github', 'slack'):
+            return Response.new(json.dumps({"error": "userId and provider (github|slack) are required"}),
+                                {"status": 400, "headers": {"Content-Type": "application/json"}})
+
+        if provider == 'github':
+            await env.sizzle_db.prepare("""
+                UPDATE users
+                SET github_id = NULL, github_username = NULL, github_access_token = NULL,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE user_id = ?
+            """).bind(user_id).run()
+        else:
+            await env.sizzle_db.prepare("""
+                UPDATE users
+                SET slack_user_id = NULL, slack_access_token = NULL, slack_team_id = NULL,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE user_id = ?
+            """).bind(user_id).run()
+
+        return Response.new(json.dumps({"success": True}),
+                            {"headers": {"Content-Type": "application/json"}})
+
+    except Exception as e:
+        logger.error("Error disconnecting provider: %s", e, exc_info=True)
+        return Response.new(json.dumps({"error": str(e)}),
+                            {"status": 500, "headers": {"Content-Type": "application/json"}})
 
 
 # Main entry point for Cloudflare Worker
