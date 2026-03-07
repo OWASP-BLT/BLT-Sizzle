@@ -230,16 +230,19 @@ async def init_database(env):
         """).run()
 
         # OAuth: add new columns if they don't exist yet (idempotent ALTER TABLE)
-        for col_def in [
-            "github_id TEXT",
-            "github_username TEXT",
-            "github_access_token TEXT",
-            "slack_access_token TEXT",
-            "slack_team_id TEXT",
-        ]:
+        # Using a whitelist of known safe column definitions to avoid any SQL injection risk.
+        _OAUTH_COLUMNS = {
+            "github_id": "TEXT",
+            "github_username": "TEXT",
+            "github_access_token": "TEXT",
+            "slack_access_token": "TEXT",
+            "slack_team_id": "TEXT",
+        }
+        for col_name, col_type in _OAUTH_COLUMNS.items():
+            # Both col_name and col_type are hardcoded constants above — safe to interpolate.
             try:
                 await env.sizzle_db.prepare(
-                    f"ALTER TABLE users ADD COLUMN {col_def}"
+                    f"ALTER TABLE users ADD COLUMN {col_name} {col_type}"
                 ).run()
             except Exception:
                 pass  # Column already exists

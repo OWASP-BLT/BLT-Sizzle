@@ -6,9 +6,11 @@ ALTER TABLE users ADD COLUMN github_username TEXT;
 ALTER TABLE users ADD COLUMN github_access_token TEXT;
 ALTER TABLE users ADD COLUMN slack_access_token TEXT;
 ALTER TABLE users ADD COLUMN slack_team_id TEXT;
+-- Note: slack_user_id already exists from migration 0000_init.sql
 
 -- Create indexes for OAuth lookups
 CREATE INDEX IF NOT EXISTS idx_users_github_id ON users(github_id);
+-- Note: idx_users_slack_user_id references the slack_user_id column added in 0000_init.sql
 CREATE INDEX IF NOT EXISTS idx_users_slack_user_id ON users(slack_user_id);
 
 -- Create oauth_states table for CSRF protection during OAuth flows
