@@ -903,8 +903,8 @@ async def handle_auth_login(request, env):
             )
 
         # Generate CSRF state token
-        state_bytes = crypto.getRandomValues(bytearray(16))
-        state = base64.urlsafe_b64encode(bytes(state_bytes)).decode('utf-8').rstrip('=')
+        state_bytes = os.urandom(16)
+        state = base64.urlsafe_b64encode(state_bytes).decode('utf-8').rstrip('=')
 
         await env.sizzle_db.prepare(
             "INSERT INTO oauth_states (state) VALUES (?)"
@@ -1061,8 +1061,8 @@ async def handle_auth_callback(request, env):
         """).bind(user_id, github_id, encrypted_email, encrypted_display_name).run()
 
         # Create session (30-day expiry) — store encrypted access token for GitHub API calls
-        token_bytes = crypto.getRandomValues(bytearray(32))
-        session_token = base64.urlsafe_b64encode(bytes(token_bytes)).decode('utf-8').rstrip('=')
+        token_bytes = os.urandom(32)
+        session_token = base64.urlsafe_b64encode(token_bytes).decode('utf-8').rstrip('=')
         encrypted_access_token = await encrypt_data(access_token, encryption_key)
 
         await env.sizzle_db.prepare("""
