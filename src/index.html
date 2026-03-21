@@ -393,17 +393,22 @@
             authControls.classList.remove('hidden');
             authControls.classList.add('flex');
 
-            // Check for auth errors in URL
+            // Handle auth errors from OAuth callback
             const params = new URLSearchParams(window.location.search);
-            if (params.get('auth_error')) {
-                console.error('Auth error:', params.get('auth_error'));
-            }
+            const authError = params.get('auth_error');
 
             const authData = await checkAuth();
             if (!authData) {
                 loginBtn.classList.remove('hidden');
                 loginBtn.classList.add('inline-flex');
                 loginOverlay.classList.remove('hidden');
+                if (authError) {
+                    const errDiv = document.createElement('div');
+                    errDiv.className = 'bg-rose-100 dark:bg-rose-900/30 border border-rose-300 dark:border-rose-700 text-rose-700 dark:text-rose-300 text-sm font-medium px-4 py-3 rounded-xl mb-4';
+                    errDiv.textContent = 'GitHub sign-in failed. Please try again.';
+                    const loginLink = loginOverlay.querySelector('a[href="/api/auth/login"]');
+                    loginOverlay.insertBefore(errDiv, loginLink);
+                }
                 return;
             }
 

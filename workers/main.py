@@ -1,4 +1,5 @@
-from js import Response, Request, Headers, crypto, TextEncoder, TextDecoder, URL, fetch
+from js import Response, Request, Headers, crypto, TextEncoder, TextDecoder, URL, fetch, Object
+from pyodide.ffi import to_js
 import json
 import base64
 import hashlib
@@ -979,9 +980,10 @@ async def handle_auth_callback(request, env):
         token_req_headers = Headers.new()
         token_req_headers.set("Content-Type", "application/json")
         token_req_headers.set("Accept", "application/json")
+        token_req_headers.set("User-Agent", "BLT-Sizzle")
         token_response = await fetch(
             "https://github.com/login/oauth/access_token",
-            {
+            to_js({
                 "method": "POST",
                 "headers": token_req_headers,
                 "body": json.dumps({
@@ -989,13 +991,15 @@ async def handle_auth_callback(request, env):
                     "client_secret": github_client_secret,
                     "code": code
                 })
-            }
+            }, dict_converter=Object.fromEntries)
         )
 
+        token_status = token_response.status
         content_type = token_response.headers.get("Content-Type") or ""
         if "json" not in content_type:
             body_text = await token_response.text()
-            logger.error("GitHub token endpoint returned non-JSON (%s): %s", content_type, body_text[:200])
+            logger.error("GitHub token endpoint non-JSON (status=%s, ct=%s): %.300s",
+                         token_status, content_type, body_text)
             return redirect("/?auth_error=token_failed")
 
         token_raw = await token_response.json()
@@ -1013,7 +1017,7 @@ async def handle_auth_callback(request, env):
         user_req_headers.set("User-Agent", "BLT-Sizzle")
         user_response = await fetch(
             "https://api.github.com/user",
-            {"headers": user_req_headers}
+            to_js({"headers": user_req_headers}, dict_converter=Object.fromEntries)
         )
 
         user_raw = await user_response.json()
@@ -1029,7 +1033,7 @@ async def handle_auth_callback(request, env):
         emails_req_headers.set("User-Agent", "BLT-Sizzle")
         emails_response = await fetch(
             "https://api.github.com/user/emails",
-            {"headers": emails_req_headers}
+            to_js({"headers": emails_req_headers}, dict_converter=Object.fromEntries)
         )
 
         emails_raw = await emails_response.json()

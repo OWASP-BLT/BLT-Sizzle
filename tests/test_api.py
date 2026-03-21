@@ -132,7 +132,38 @@ class TestStaticAssets(unittest.TestCase):
         self.assertEqual(status, 200, f"Expected 200 but got {status}")
 
 
-class TestSyntax(unittest.TestCase):
+class TestAuthRedirectLoop(unittest.TestCase):
+    """
+    Verify that landing on the homepage after an OAuth failure does NOT
+    redirect back to GitHub, i.e. the old server-side auth gate loop is gone.
+    """
+
+    def _get_final_status(self, path):
+        """Follow redirects (via urllib default) and return the final HTTP status."""
+        try:
+            status, headers, body = get(path)
+            return status
+        except Exception as e:
+            raise AssertionError(f"Request to {path} raised: {e}") from e
+
+    def test_homepage_auth_error_token_failed_returns_200(self):
+        status = self._get_final_status("/?auth_error=token_failed")
+        self.assertEqual(status, 200,
+                         f"/?auth_error=token_failed ended up with status {status} "
+                         "(redirect loop or server error?)")
+
+    def test_homepage_auth_error_server_error_returns_200(self):
+        status = self._get_final_status("/?auth_error=server_error")
+        self.assertEqual(status, 200,
+                         f"/?auth_error=server_error ended up with status {status}")
+
+    def test_homepage_auth_error_not_configured_returns_200(self):
+        status = self._get_final_status("/?auth_error=not_configured")
+        self.assertEqual(status, 200,
+                         f"/?auth_error=not_configured ended up with status {status}")
+
+
+
     """Verify the worker Python source compiles without errors."""
 
     def test_worker_main_py_syntax(self):
