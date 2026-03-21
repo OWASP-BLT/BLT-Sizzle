@@ -14,6 +14,13 @@ logging.basicConfig(level=logging.INFO, stream=sys.stdout)
 logger = logging.getLogger(__name__)
 
 
+def redirect(location, status=302):
+    """Create a redirect Response with proper Headers object (supports relative URLs)"""
+    h = Headers.new()
+    h.set("Location", location)
+    return Response.new(None, {"status": status, "headers": h})
+
+
 # Encryption utilities using Web Crypto API
 async def encrypt_data(data, key):
     """Encrypt data using AES-GCM"""
@@ -945,10 +952,10 @@ async def handle_auth_callback(request, env):
         error = url.searchParams.get('error')
 
         if error:
-            return Response.redirect("/?auth_error=access_denied", 302)
+            return redirect("/?auth_error=access_denied")
 
         if not code or not state:
-            return Response.redirect("/?auth_error=missing_params", 302)
+            return redirect("/?auth_error=missing_params")
 
         # Validate CSRF state
         state_proxy = await env.sizzle_db.prepare(
@@ -956,7 +963,7 @@ async def handle_auth_callback(request, env):
         ).bind(state).first()
 
         if not state_proxy:
-            return Response.redirect("/?auth_error=invalid_state", 302)
+            return redirect("/?auth_error=invalid_state")
 
         await env.sizzle_db.prepare(
             "DELETE FROM oauth_states WHERE state = ?"
@@ -966,7 +973,7 @@ async def handle_auth_callback(request, env):
         github_client_secret = getattr(env, 'GITHUB_CLIENT_SECRET', '')
 
         if not github_client_id or not github_client_secret:
-            return Response.redirect("/?auth_error=not_configured", 302)
+            return redirect("/?auth_error=not_configured")
 
         # Exchange authorization code for access token
         token_response = await fetch(
@@ -991,7 +998,7 @@ async def handle_auth_callback(request, env):
 
         if not access_token:
             logger.error("Failed to get access token: %s", token_data)
-            return Response.redirect("/?auth_error=token_failed", 302)
+            return redirect("/?auth_error=token_failed")
 
         # Fetch GitHub user profile
         user_response = await fetch(
@@ -1009,7 +1016,7 @@ async def handle_auth_callback(request, env):
         user_data = user_raw.to_py() if hasattr(user_raw, 'to_py') else user_raw
 
         if not isinstance(user_data, dict) or not user_data.get('login'):
-            return Response.redirect("/?auth_error=user_fetch_failed", 302)
+            return redirect("/?auth_error=user_fetch_failed")
 
         # Fetch verified email addresses
         emails_response = await fetch(
@@ -1078,7 +1085,7 @@ async def handle_auth_callback(request, env):
 
     except Exception as e:
         logger.error("Error in auth callback: %s", e, exc_info=True)
-        return Response.redirect("/?auth_error=server_error", 302)
+        return redirect("/?auth_error=server_error")
 
 
 async def handle_auth_me(request, env):
