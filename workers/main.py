@@ -5,10 +5,13 @@ import hashlib
 import logging
 import os
 import re
+import sys
 from datetime import datetime, date
 
+# Route logs to stdout so Cloudflare Workers captures them at the correct level
+# (stderr is always treated as "error" by the Workers runtime)
+logging.basicConfig(level=logging.INFO, stream=sys.stdout)
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
 
 
 # Encryption utilities using Web Crypto API

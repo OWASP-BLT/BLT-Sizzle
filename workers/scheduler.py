@@ -7,9 +7,10 @@ from js import fetch, Date
 import json
 import base64
 import logging
+import sys
 
+logging.basicConfig(level=logging.INFO, stream=sys.stdout)
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
 
 
 def _decrypt_simple(encrypted_data):
