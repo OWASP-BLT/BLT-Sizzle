@@ -400,14 +400,7 @@ npm run db:query "SELECT name FROM sqlite_master WHERE type='table'"
 
 ---
 
-## 💰 Cost
-
-Cloudflare free tier covers most teams: 100,000 requests/day · 10 GB D1 storage · Unlimited bandwidth.  
-Paid: ~$5/month for 10M requests, ~$0.75/month per additional GB of D1 storage.
-
----
-
-## 📄 License
+##  License
 
 This project is part of [OWASP BLT](https://github.com/OWASP-BLT) and follows the same license terms.
 
