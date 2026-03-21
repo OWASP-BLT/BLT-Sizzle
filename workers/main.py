@@ -977,15 +977,16 @@ async def handle_auth_callback(request, env):
             return redirect("/?auth_error=not_configured")
 
         # Exchange authorization code for access token
-        token_req_headers = Headers.new()
-        token_req_headers.set("Content-Type", "application/json")
-        token_req_headers.set("Accept", "application/json")
-        token_req_headers.set("User-Agent", "BLT-Sizzle")
+        logger.info("Auth callback: exchanging code for token")
         token_response = await fetch(
             "https://github.com/login/oauth/access_token",
             to_js({
                 "method": "POST",
-                "headers": token_req_headers,
+                "headers": {
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                    "User-Agent": "BLT-Sizzle",
+                },
                 "body": json.dumps({
                     "client_id": github_client_id,
                     "client_secret": github_client_secret,
@@ -996,6 +997,7 @@ async def handle_auth_callback(request, env):
 
         token_status = token_response.status
         content_type = token_response.headers.get("Content-Type") or ""
+        logger.info("Auth callback: token response status=%s ct=%s", token_status, content_type)
         if "json" not in content_type:
             body_text = await token_response.text()
             logger.error("GitHub token endpoint non-JSON (status=%s, ct=%s): %.300s",
@@ -1011,29 +1013,36 @@ async def handle_auth_callback(request, env):
             return redirect("/?auth_error=token_failed")
 
         # Fetch GitHub user profile
-        user_req_headers = Headers.new()
-        user_req_headers.set("Authorization", f"token {access_token}")
-        user_req_headers.set("Accept", "application/json")
-        user_req_headers.set("User-Agent", "BLT-Sizzle")
+        logger.info("Auth callback: fetching user profile")
         user_response = await fetch(
             "https://api.github.com/user",
-            to_js({"headers": user_req_headers}, dict_converter=Object.fromEntries)
+            to_js({
+                "headers": {
+                    "Authorization": f"token {access_token}",
+                    "Accept": "application/json",
+                    "User-Agent": "BLT-Sizzle",
+                }
+            }, dict_converter=Object.fromEntries)
         )
 
         user_raw = await user_response.json()
         user_data = user_raw.to_py() if hasattr(user_raw, 'to_py') else user_raw
 
         if not isinstance(user_data, dict) or not user_data.get('login'):
+            logger.error("Bad user data from GitHub: %s", user_data)
             return redirect("/?auth_error=user_fetch_failed")
 
         # Fetch verified email addresses
-        emails_req_headers = Headers.new()
-        emails_req_headers.set("Authorization", f"token {access_token}")
-        emails_req_headers.set("Accept", "application/json")
-        emails_req_headers.set("User-Agent", "BLT-Sizzle")
+        logger.info("Auth callback: fetching user emails for %s", user_data.get('login'))
         emails_response = await fetch(
             "https://api.github.com/user/emails",
-            to_js({"headers": emails_req_headers}, dict_converter=Object.fromEntries)
+            to_js({
+                "headers": {
+                    "Authorization": f"token {access_token}",
+                    "Accept": "application/json",
+                    "User-Agent": "BLT-Sizzle",
+                }
+            }, dict_converter=Object.fromEntries)
         )
 
         emails_raw = await emails_response.json()
@@ -1080,14 +1089,21 @@ async def handle_auth_callback(request, env):
             VALUES (?, ?, datetime('now', '+30 days'), ?)
         """).bind(session_token, user_id, encrypted_access_token).run()
 
+        logger.info("Auth callback: creating session for user=%s", user_id)
         cookie = (
             f"sizzle_session={session_token}; HttpOnly; Secure; SameSite=Lax; "
             f"Path=/; Max-Age=2592000"
         )
-        redirect_headers = Headers.new()
-        redirect_headers.set("Location", "/")
-        redirect_headers.set("Set-Cookie", cookie)
-        return Response.new(None, {"status": 302, "headers": redirect_headers})
+        return Response.new(
+            None,
+            to_js({
+                "status": 302,
+                "headers": {
+                    "Location": "/",
+                    "Set-Cookie": cookie,
+                }
+            }, dict_converter=Object.fromEntries)
+        )
 
     except Exception as e:
         logger.error("Error in auth callback: %s", e, exc_info=True)
