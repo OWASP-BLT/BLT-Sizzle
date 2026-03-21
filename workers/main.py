@@ -983,14 +983,14 @@ async def handle_auth_callback(request, env):
             return redirect("/?auth_error=not_configured")
 
         # Exchange authorization code for access token
+        token_req_headers = Headers.new()
+        token_req_headers.set("Content-Type", "application/json")
+        token_req_headers.set("Accept", "application/json")
         token_response = await fetch(
             "https://github.com/login/oauth/access_token",
             {
                 "method": "POST",
-                "headers": {
-                    "Content-Type": "application/json",
-                    "Accept": "application/json"
-                },
+                "headers": token_req_headers,
                 "body": json.dumps({
                     "client_id": github_client_id,
                     "client_secret": github_client_secret,
@@ -998,6 +998,12 @@ async def handle_auth_callback(request, env):
                 })
             }
         )
+
+        content_type = token_response.headers.get("Content-Type") or ""
+        if "json" not in content_type:
+            body_text = await token_response.text()
+            logger.error("GitHub token endpoint returned non-JSON (%s): %s", content_type, body_text[:200])
+            return redirect("/?auth_error=token_failed")
 
         token_raw = await token_response.json()
         token_data = token_raw.to_py() if hasattr(token_raw, 'to_py') else token_raw
@@ -1008,15 +1014,13 @@ async def handle_auth_callback(request, env):
             return redirect("/?auth_error=token_failed")
 
         # Fetch GitHub user profile
+        user_req_headers = Headers.new()
+        user_req_headers.set("Authorization", f"token {access_token}")
+        user_req_headers.set("Accept", "application/json")
+        user_req_headers.set("User-Agent", "BLT-Sizzle")
         user_response = await fetch(
             "https://api.github.com/user",
-            {
-                "headers": {
-                    "Authorization": f"token {access_token}",
-                    "Accept": "application/json",
-                    "User-Agent": "BLT-Sizzle"
-                }
-            }
+            {"headers": user_req_headers}
         )
 
         user_raw = await user_response.json()
@@ -1026,15 +1030,13 @@ async def handle_auth_callback(request, env):
             return redirect("/?auth_error=user_fetch_failed")
 
         # Fetch verified email addresses
+        emails_req_headers = Headers.new()
+        emails_req_headers.set("Authorization", f"token {access_token}")
+        emails_req_headers.set("Accept", "application/json")
+        emails_req_headers.set("User-Agent", "BLT-Sizzle")
         emails_response = await fetch(
             "https://api.github.com/user/emails",
-            {
-                "headers": {
-                    "Authorization": f"token {access_token}",
-                    "Accept": "application/json",
-                    "User-Agent": "BLT-Sizzle"
-                }
-            }
+            {"headers": emails_req_headers}
         )
 
         emails_raw = await emails_response.json()
