@@ -188,7 +188,14 @@ async def handle_request(request, env):
                               {"status": 404, "headers": {"Content-Type": "application/json"}})
     
     # Static Pages & Assets
+    PROTECTED_PAGES = {"", "/", "/index.html", "/leaderboard", "/time-logs", "/settings", "/check-ins", "/checkins"}
     if method == "GET":
+        if path in PROTECTED_PAGES:
+            # Server-side auth gate — redirect to login if no valid session
+            user_id = await get_session_user(request, env)
+            if not user_id:
+                return redirect("/api/auth/login")
+
         if path == "" or path == "/" or path == "/index.html":
             if hasattr(env, 'ASSETS'):
                 return await env.ASSETS.fetch(request)

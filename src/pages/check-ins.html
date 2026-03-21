@@ -234,13 +234,7 @@
             authControls.classList.add('flex');
 
             const authData = await checkAuth();
-            if (!authData) {
-                loginBtn.classList.remove('hidden');
-                loginBtn.classList.add('inline-flex');
-                document.getElementById('checkinsList').innerHTML =
-                    '<p class="text-center py-12 text-slate-400 font-bold">Please <a href="/api/auth/login" class="text-primary underline">login with GitHub</a> to view your check-ins.</p>';
-                return;
-            }
+            if (!authData) return;
 
             userId = authData.userId;
             userDisplay.textContent = authData.displayName;

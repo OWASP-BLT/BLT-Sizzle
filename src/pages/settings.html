@@ -302,10 +302,7 @@
             authControls.classList.add('flex');
 
             const authData = await checkAuth();
-            if (!authData) {
-                window.location.href = '/api/auth/login';
-                return;
-            }
+            if (!authData) return;
 
             userId = authData.userId;
             userDisplay.textContent = authData.displayName;
@@ -632,10 +629,7 @@
             authControls.classList.add('flex');
 
             const authData = await checkAuth();
-            if (!authData) {
-                window.location.href = '/api/auth/login';
-                return;
-            }
+            if (!authData) return;
 
             userId = authData.userId;
             userDisplay.textContent = authData.displayName;

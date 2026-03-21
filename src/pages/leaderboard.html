@@ -211,12 +211,9 @@
                 `;
             }
         }
-        loadLeaderboard();
-
-        // Auth header init
+        // Auth header — populate user info from session
         (async () => {
             const authControls = document.getElementById('authControls');
-            const loginBtn = document.getElementById('loginBtn');
             const userDisplay = document.getElementById('userDisplay');
             const logoutBtn = document.getElementById('logoutBtn');
 
@@ -235,12 +232,10 @@
                             await fetch('/api/auth/logout', { method: 'POST' });
                             window.location.reload();
                         });
-                        return;
                     }
                 }
             } catch (e) {}
-            loginBtn.classList.remove('hidden');
-            loginBtn.classList.add('inline-flex');
+            loadLeaderboard();
         })();
     </script>
 </body>

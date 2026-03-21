@@ -395,12 +395,7 @@
             }
 
             const authData = await checkAuth();
-            if (!authData) {
-                loginBtn.classList.remove('hidden');
-                loginBtn.classList.add('inline-flex');
-                loginOverlay.classList.remove('hidden');
-                return;
-            }
+            if (!authData) return;
 
             userId = authData.userId;
             userDisplay.textContent = authData.displayName;
