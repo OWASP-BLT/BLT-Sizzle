@@ -3,6 +3,7 @@ import json
 import base64
 import hashlib
 import logging
+import os
 import re
 from datetime import datetime, date
 
@@ -17,8 +18,8 @@ async def encrypt_data(data, key):
         return ""
     
     try:
-        # Generate IV
-        iv = crypto.getRandomValues(bytearray(12))
+        # Generate IV using Python's CSPRNG (avoids JS typed array interop issues)
+        iv = os.urandom(12)
         
         # Convert key to bytes
         key_bytes = key.encode('utf-8')
