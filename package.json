@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
+    "env:push": "bash scripts/push-env.sh",
     "tail": "wrangler tail",
     "db:create": "wrangler d1 create checkin-db",
     "db:init": "wrangler d1 execute checkin-db --file=./schema.sql",

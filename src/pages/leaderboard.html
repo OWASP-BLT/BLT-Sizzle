@@ -86,6 +86,18 @@
                             <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
                         </svg>
                     </button>
+                    <!-- Auth Controls -->
+                    <div id="authControls" class="hidden items-center gap-3">
+                        <span id="userDisplay" class="hidden text-sm font-medium text-slate-600 dark:text-slate-300 sm:block"></span>
+                        <button id="logoutBtn"
+                            class="hidden text-sm font-medium text-slate-500 hover:text-primary dark:text-slate-400 dark:hover:text-primary transition-colors">
+                            Sign out
+                        </button>
+                        <a id="loginBtn" href="/api/auth/login"
+                            class="hidden items-center gap-2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-sm font-semibold px-4 py-2 rounded-xl hover:opacity-90 transition-opacity">
+                            Login with GitHub
+                        </a>
+                    </div>
                     <!-- Mobile Menu Button -->
                     <button class="md:hidden p-2 text-slate-600 dark:text-slate-300">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -170,8 +182,8 @@
                                         ${medal || (index + 1)}
                                     </span>
                                     <div class="flex flex-col">
-                                        <span class="font-bold text-slate-800 dark:text-slate-100 text-lg">${item.user_id.substring(0, 8) + '...'}</span>
-                                        <span class="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Anonymous User</span>
+                                        <span class="font-bold text-slate-800 dark:text-slate-100 text-lg">${item.user_id}</span>
+                                        <span class="text-[10px] text-slate-400 uppercase tracking-widest font-bold">GitHub User</span>
                                     </div>
                                 </div>
                                 <div class="flex flex-col items-end">
@@ -200,6 +212,36 @@
             }
         }
         loadLeaderboard();
+
+        // Auth header init
+        (async () => {
+            const authControls = document.getElementById('authControls');
+            const loginBtn = document.getElementById('loginBtn');
+            const userDisplay = document.getElementById('userDisplay');
+            const logoutBtn = document.getElementById('logoutBtn');
+
+            authControls.classList.remove('hidden');
+            authControls.classList.add('flex');
+
+            try {
+                const res = await fetch('/api/auth/me');
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.authenticated) {
+                        userDisplay.textContent = data.displayName;
+                        userDisplay.classList.remove('hidden');
+                        logoutBtn.classList.remove('hidden');
+                        logoutBtn.addEventListener('click', async () => {
+                            await fetch('/api/auth/logout', { method: 'POST' });
+                            window.location.reload();
+                        });
+                        return;
+                    }
+                }
+            } catch (e) {}
+            loginBtn.classList.remove('hidden');
+            loginBtn.classList.add('inline-flex');
+        })();
     </script>
 </body>
 

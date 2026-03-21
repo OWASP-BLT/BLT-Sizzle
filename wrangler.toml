@@ -11,7 +11,7 @@ crons = ["0 * * * *"]
 [[d1_databases]]
 binding = "sizzle_db"
 database_name = "sizzle-db"
-database_id = "272f7618-e0af-42be-80b5-4ca1e0090356"
+database_id = { env = "DB_ID" }
 migrations_dir = "migrations"
 
 # Configure assets (static files)
@@ -19,18 +19,7 @@ migrations_dir = "migrations"
 directory = "src"
 binding = "ASSETS"
 
-[vars]
-WORKER_HOST = "blt-sizzle.workers.dev"
-# EMAIL_API_KEY = ""
-# EMAIL_FROM = ""
-# EMAIL_PROVIDER = "sendgrid"
 
-# Use secrets for encryption key in production:
-# wrangler secret put ENCRYPTION_KEY
-# 
-# For development only, you can uncomment and set a key here:
-# [vars]
-# ENCRYPTION_KEY = "development-key-only-not-for-production"
 [observability]
 enabled = false
 head_sampling_rate = 1

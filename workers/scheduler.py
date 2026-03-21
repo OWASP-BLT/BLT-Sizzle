@@ -5,10 +5,24 @@ This script is triggered by Cloudflare Workers cron triggers.
 
 from js import fetch, Date
 import json
+import base64
 import logging
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
+
+
+def _decrypt_simple(encrypted_data):
+    """Simple base64 decryption matching the placeholder in main.py"""
+    if not encrypted_data:
+        return ''
+    try:
+        parts = encrypted_data.split(':')
+        if len(parts) != 2:
+            return encrypted_data
+        return base64.b64decode(parts[1]).decode('utf-8')
+    except Exception:
+        return encrypted_data
 
 
 async def send_slack_notification(webhook_url, user_email, checkin_url):
@@ -342,10 +356,10 @@ async def handle_scheduled(event, env):
         
 
         
-        # Query users who need notifications at this time
+        # Query users - use encrypted column names
         result_proxy = await env.sizzle_db.prepare("""
-            SELECT user_id, email, slack_webhook_url, notification_time, 
-                   timezone, email_notifications, notification_enabled
+            SELECT user_id, encrypted_email, encrypted_slack_webhook_url,
+                   notification_time, timezone, email_notifications, notification_enabled
             FROM users
             WHERE notification_enabled = 1
         """).all()
@@ -361,28 +375,123 @@ async def handle_scheduled(event, env):
         
         for user in users:
             try:
+                # Decrypt PII
+                slack_url = _decrypt_simple(user.get('encrypted_slack_webhook_url', ''))
+                email = _decrypt_simple(user.get('encrypted_email', ''))
+
                 notif_hour, notif_minute = map(int, user['notification_time'].split(':'))
                 
                 # Check if we are within the notification window
                 if current_hour == notif_hour and abs(current_minute - notif_minute) < 30:
                     # 1. Send Check-in Reminder
-                    if user['slack_webhook_url']:
-                        await send_slack_notification(user['slack_webhook_url'], user['user_id'], checkin_url)
+                    if slack_url:
+                        await send_slack_notification(slack_url, user['user_id'], checkin_url)
                     
-                    if user['email'] and user['email_notifications'] == 1:
-                        await send_email_notification(user['email'], user['user_id'], checkin_url, env)
+                    if email and user['email_notifications'] == 1:
+                        await send_email_notification(email, user['user_id'], checkin_url, env)
                         
                     # 2. Send Daily Time Log Summary
-                    if user['slack_webhook_url']:
-                        await send_daily_summary(user['slack_webhook_url'], user['user_id'], env)
+                    if slack_url:
+                        await send_daily_summary(slack_url, user['user_id'], env)
                             
             except Exception as e:
                 logger.error("Error processing user %s: %s", user['user_id'], e)
                 continue
+
+        # Org-level notifications
+        await handle_org_notifications(env, current_hour, current_minute, checkin_url)
         
         logger.info("Scheduled task complete")
     except Exception as e:
         logger.error("Error in scheduled handler: %s", e, exc_info=True)
+
+
+async def handle_org_notifications(env, current_hour, current_minute, checkin_url):
+    """Send one consolidated Slack reminder per org for members who haven't checked in today"""
+    try:
+        # Default org notification hour is 9am UTC; override with ORG_NOTIFICATION_HOUR env var
+        org_hour = int(getattr(env, 'ORG_NOTIFICATION_HOUR', '9'))
+        if not (current_hour == org_hour and current_minute < 30):
+            return
+
+        today = Date.new().toISOString().split('T')[0]
+
+        orgs_proxy = await env.sizzle_db.prepare("""
+            SELECT id, github_org_name, encrypted_slack_webhook_url
+            FROM organizations
+            WHERE encrypted_slack_webhook_url IS NOT NULL
+              AND encrypted_slack_webhook_url != ''
+        """).all()
+
+        orgs_result = orgs_proxy.to_py() if hasattr(orgs_proxy, 'to_py') else orgs_proxy
+        orgs = orgs_result.get('results', []) if isinstance(orgs_result, dict) else []
+
+        for org in orgs:
+            try:
+                slack_url = _decrypt_simple(org.get('encrypted_slack_webhook_url', ''))
+                if not slack_url:
+                    continue
+
+                # Members who haven't submitted an org-tagged check-in today
+                pending_proxy = await env.sizzle_db.prepare("""
+                    SELECT uo.user_id
+                    FROM user_organizations uo
+                    WHERE uo.org_id = ?
+                      AND uo.user_id NOT IN (
+                          SELECT user_id FROM checkins
+                          WHERE org_id = ? AND checkin_date = ?
+                      )
+                    ORDER BY uo.user_id
+                """).bind(org['id'], org['id'], today).all()
+
+                pending_result = pending_proxy.to_py() if hasattr(pending_proxy, 'to_py') else pending_proxy
+                pending = pending_result.get('results', []) if isinstance(pending_result, dict) else []
+
+                if not pending:
+                    continue
+
+                member_list = '\n'.join(f'\u2022 @{m["user_id"]}' for m in pending)
+
+                message = {
+                    "text": f"\U0001f4cb Daily check-in reminder for {org['github_org_name']}",
+                    "blocks": [
+                        {
+                            "type": "section",
+                            "text": {
+                                "type": "mrkdwn",
+                                "text": (
+                                    f"*Daily Check-in Reminder \u2014 {org['github_org_name']}* \U0001f4cb\n\n"
+                                    f"The following members haven't checked in for this org today:\n"
+                                    f"{member_list}"
+                                )
+                            }
+                        },
+                        {
+                            "type": "actions",
+                            "elements": [
+                                {
+                                    "type": "button",
+                                    "text": {"type": "plain_text", "text": "\U0001f4dd Submit Check-in"},
+                                    "style": "primary",
+                                    "url": checkin_url,
+                                    "action_id": "checkin_button"
+                                }
+                            ]
+                        }
+                    ]
+                }
+
+                await fetch(slack_url, {
+                    "method": "POST",
+                    "headers": {"Content-Type": "application/json"},
+                    "body": json.dumps(message)
+                })
+
+            except Exception as e:
+                logger.error("Error sending org notification for %s: %s", org.get('github_org_name'), e)
+
+    except Exception as e:
+        logger.error("Error in org notifications: %s", e, exc_info=True)
 
 
 async def on_scheduled(event, env):
