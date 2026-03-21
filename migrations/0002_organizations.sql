@@ -4,6 +4,7 @@
 -- Store encrypted access token so we can verify org membership
 ALTER TABLE sessions ADD COLUMN encrypted_access_token TEXT;
 
+
 -- Organizations table
 CREATE TABLE IF NOT EXISTS organizations (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -29,5 +30,6 @@ CREATE INDEX IF NOT EXISTS idx_user_orgs_org ON user_organizations(org_id);
 
 -- Tag check-ins with an org (NULL = personal / unfiled check-in)
 ALTER TABLE checkins ADD COLUMN org_id INTEGER REFERENCES organizations(id);
+
 
 CREATE INDEX IF NOT EXISTS idx_checkins_org_date ON checkins(org_id, checkin_date);
