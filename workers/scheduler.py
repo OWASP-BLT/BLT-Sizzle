@@ -285,64 +285,6 @@ async def send_via_mailgun(to_email, html_content, text_content, env):
         return False
 
 
-async def send_daily_summary(webhook_url, user_id, env):
-    """Send daily time log summary to Slack"""
-    try:
-        # Get logs from last 24 hours
-        yesterday = (Date.now() - 86400000) # 24h in ms
-        yesterday_iso = Date.new(yesterday).toISOString().split('T')[0]
-        
-        result_proxy = await env.sizzle_db.prepare("""
-            SELECT start_time, end_time, duration_seconds, github_issue_url 
-            FROM timelogs 
-            WHERE user_id = ? AND date(start_time) >= ? AND end_time IS NOT NULL
-        """).bind(user_id, yesterday_iso).all()
-        
-        result = result_proxy.to_py() if hasattr(result_proxy, 'to_py') else result_proxy
-        results = result.get('results', []) if isinstance(result, dict) else []
-        
-        if not results:
-            return False
-            
-        total_seconds = sum(log['duration_seconds'] for log in results)
-        hours, remainder = divmod(total_seconds, 3600)
-        minutes, seconds = divmod(remainder, 60)
-        total_str = f"{hours}h {minutes}m"
-        
-        message = {
-            "text": "📊 Daily Time Log Summary",
-            "blocks": [
-                {
-                    "type": "header",
-                    "text": {"type": "plain_text", "text": "📊 Daily Time Log Summary"}
-                },
-                {
-                    "type": "section",
-                    "text": {"type": "mrkdwn", "text": f"*Total tracked time:* {total_str}"}
-                }
-            ]
-        }
-        
-        for log in results:
-            st = log['start_time'].split('T')[1][:5]
-            et = log['end_time'].split('T')[1][:5]
-            issue = f" - <{log['github_issue_url']}|Issue>" if log['github_issue_url'] else ""
-            message["blocks"].append({
-                "type": "section",
-                "text": {"type": "mrkdwn", "text": f"• {st} - {et} ({int(log['duration_seconds']/60)}m){issue}"}
-            })
-            
-        await fetch(webhook_url, {
-            "method": "POST",
-            "headers": {"Content-Type": "application/json"},
-            "body": json.dumps(message)
-        })
-        return True
-    except Exception as e:
-        logger.error("Error sending daily summary: %s", e)
-        return False
-
-
 async def handle_scheduled(event, env):
     """
     Handle scheduled cron trigger.
@@ -390,10 +332,6 @@ async def handle_scheduled(event, env):
                     
                     if email and user['email_notifications'] == 1:
                         await send_email_notification(email, user['user_id'], checkin_url, env)
-                        
-                    # 2. Send Daily Time Log Summary
-                    if slack_url:
-                        await send_daily_summary(slack_url, user['user_id'], env)
                             
             except Exception as e:
                 logger.error("Error processing user %s: %s", user['user_id'], e)

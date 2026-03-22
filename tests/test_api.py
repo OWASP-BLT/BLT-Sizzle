@@ -127,11 +127,6 @@ class TestStaticAssets(unittest.TestCase):
         status, headers, body = get("/settings")
         self.assertEqual(status, 200, f"Expected 200 but got {status}")
 
-    def test_time_logs_page_returns_200(self):
-        status, headers, body = get("/time-logs")
-        self.assertEqual(status, 200, f"Expected 200 but got {status}")
-
-
 class TestAuthRedirectLoop(unittest.TestCase):
     """
     Verify that landing on the homepage after an OAuth failure does NOT

@@ -169,15 +169,6 @@ async def handle_request(request, env):
         elif api_path == "/api/notification/test" and method == "POST":
             return await handle_test_notification(request, env)
         
-        elif api_path == "/api/timelog/start" and method == "POST":
-            return await handle_timelog_start(request, env)
-        
-        elif api_path == "/api/timelog/stop" and method == "POST":
-            return await handle_timelog_stop(request, env)
-        
-        elif api_path == "/api/timelogs" and method == "GET":
-            return await handle_get_timelogs(request, env)
-        
         elif api_path == "/api/leaderboard" and method == "GET":
             return await handle_leaderboard(request, env)
             
@@ -195,7 +186,7 @@ async def handle_request(request, env):
                 return await env.ASSETS.fetch(request)
             return Response.new("Assets not found", {"status": 404})
         
-        elif path in ["/leaderboard", "/time-logs", "/settings", "/check-ins", "/checkins"]:
+        elif path in ["/leaderboard", "/settings", "/check-ins", "/checkins"]:
             if hasattr(env, 'ASSETS'):
                 # Handle both /check-ins and /checkins
                 normalized_asset_path = path
@@ -252,21 +243,6 @@ async def init_database(env):
                 mood TEXT,
                 goal_accomplished INTEGER DEFAULT 0,
                 checkin_date DATE NOT NULL,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users(user_id)
-            )
-        """).run()
-        
-        # Create timelogs table
-        await env.sizzle_db.prepare("""
-            CREATE TABLE IF NOT EXISTS timelogs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id TEXT NOT NULL,
-                start_time DATETIME NOT NULL,
-                end_time DATETIME,
-                duration_seconds INTEGER,
-                github_issue_url TEXT,
-                encrypted_github_issue_url TEXT,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (user_id) REFERENCES users(user_id)
             )
@@ -460,113 +436,6 @@ async def handle_checkin(request, env):
         
     except Exception as e:
         logger.error("Error handling check-in: %s", e, exc_info=True)
-        return Response.new(json.dumps({"error": str(e)}), 
-                          {"status": 500, "headers": {"Content-Type": "application/json"}})
-
-
-async def handle_timelog_start(request, env):
-    """Start a new time log"""
-    try:
-        data = (await request.json()).to_py()
-        user_id = data.get('userId')
-        issue_url = data.get('githubIssueUrl', '')
-        
-        if not user_id:
-            return Response.new(json.dumps({"error": "User ID required"}), {"status": 400, "headers": {"Content-Type": "application/json"}})
-            
-        # Check if there's already an active log
-        active_proxy = await env.sizzle_db.prepare("""
-            SELECT id FROM timelogs WHERE user_id = ? AND end_time IS NULL LIMIT 1
-        """).bind(user_id).first()
-        
-        if active_proxy:
-            return Response.new(json.dumps({"error": "You already have an active time log"}), {"status": 400, "headers": {"Content-Type": "application/json"}})
-            
-        encryption_key = getattr(env, 'ENCRYPTION_KEY', 'sizzle-dev-key-12345')
-        encrypted_issue_url = await encrypt_data(issue_url, encryption_key) if issue_url else ''
-        now = datetime.now().isoformat()
-        await env.sizzle_db.prepare("""
-            INSERT INTO timelogs (user_id, start_time, encrypted_github_issue_url)
-            VALUES (?, ?, ?)
-        """).bind(user_id, now, encrypted_issue_url).run()
-        
-        return Response.new(json.dumps({"success": True, "startTime": now}), 
-                          {"headers": {"Content-Type": "application/json"}})
-    except Exception as e:
-        return Response.new(json.dumps({"error": str(e)}), 
-                          {"status": 500, "headers": {"Content-Type": "application/json"}})
-
-
-async def handle_timelog_stop(request, env):
-    """Stop active time log"""
-    try:
-        data = (await request.json()).to_py()
-        user_id = data.get('userId')
-        
-        if not user_id:
-            return Response.new(json.dumps({"error": "User ID required"}), {"status": 400, "headers": {"Content-Type": "application/json"}})
-            
-        active_proxy = await env.sizzle_db.prepare("""
-            SELECT id, start_time FROM timelogs WHERE user_id = ? AND end_time IS NULL 
-            ORDER BY id DESC LIMIT 1
-        """).bind(user_id).first()
-        
-        if not active_proxy:
-            return Response.new(json.dumps({"error": "No active time log found"}), {"status": 404, "headers": {"Content-Type": "application/json"}})
-        
-        active = active_proxy.to_py()
-        now_dt = datetime.now()
-        start_dt = datetime.fromisoformat(active['start_time'])
-        duration = int((now_dt - start_dt).total_seconds())
-        
-        await env.sizzle_db.prepare("""
-            UPDATE timelogs SET end_time = ?, duration_seconds = ? WHERE id = ?
-        """).bind(now_dt.isoformat(), duration, active['id']).run()
-        
-        return Response.new(json.dumps({"success": True, "duration": duration}), 
-                          {"headers": {"Content-Type": "application/json"}})
-    except Exception as e:
-        return Response.new(json.dumps({"error": str(e)}), 
-                          {"status": 500, "headers": {"Content-Type": "application/json"}})
-
-
-async def handle_get_timelogs(request, env):
-    """List time logs for a user"""
-    try:
-        url = URL.new(request.url)
-        user_id = url.searchParams.get('userId')
-        
-        if not user_id:
-            return Response.new(json.dumps({"error": "User ID required"}), 
-                              {"status": 400, "headers": {"Content-Type": "application/json"}})
-            
-        result_proxy = await env.sizzle_db.prepare("""
-            SELECT id, start_time, end_time, duration_seconds,
-                   encrypted_github_issue_url, github_issue_url
-            FROM timelogs WHERE user_id = ?
-            ORDER BY id DESC LIMIT 50
-        """).bind(user_id).all()
-
-        result = result_proxy.to_py() if hasattr(result_proxy, 'to_py') else result_proxy
-        rows = result.get('results', []) if isinstance(result, dict) else []
-
-        encryption_key = getattr(env, 'ENCRYPTION_KEY', 'sizzle-dev-key-12345')
-        logs = []
-        for row in rows:
-            # Prefer encrypted column; fall back to legacy plaintext column
-            raw_url = row.get('encrypted_github_issue_url') or row.get('github_issue_url') or ''
-            issue_url = await decrypt_data(raw_url, encryption_key) if raw_url else ''
-            logs.append({
-                'id': row['id'],
-                'start_time': row['start_time'],
-                'end_time': row['end_time'],
-                'duration_seconds': row['duration_seconds'],
-                'githubIssueUrl': issue_url,
-            })
-
-        return Response.new(json.dumps({"logs": logs}),
-                          {"headers": {"Content-Type": "application/json"}})
-    except Exception as e:
         return Response.new(json.dumps({"error": str(e)}), 
                           {"status": 500, "headers": {"Content-Type": "application/json"}})
 
